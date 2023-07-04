@@ -1,0 +1,4 @@
+LIBRARY	"obrandomizer"
+EXPORTS
+OBSEPlugin_Query
+OBSEPlugin_Load
