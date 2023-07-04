@@ -338,6 +338,84 @@ int myrand(int min, int max) {
 	return ((double)rand() / (double)RAND_MAX) * (max - min) + min;
 }
 
+bool getFormsFromLeveledList(TESLevItem* lev, std::map<UInt32, TESForm*>& forms) {
+	auto data = lev->leveledList.list.Info();
+	auto next = lev->leveledList.list.Next();
+	while (data != NULL) {
+		if (data->form->GetFormType() == kFormType_LeveledItem) {
+			if (!getFormsFromLeveledList(OBLIVION_CAST(data->form, TESForm, TESLevItem), forms)) {
+				return false;
+			}
+		}
+		else {
+			if (isQuestItem(data->form) && oExcludeQuestItems) {
+				return false;
+			}
+			forms.insert(std::make_pair(data->form->GetFormType(), data->form));
+		}
+		if (next == NULL) {
+			break;
+		}
+		data = next->Info();
+		next = next->Next();
+	}
+	return true;
+}
+
+void getInventoryFromTESLevItem(TESLevItem* lev, std::map<TESForm*, int>& itemList, bool addQuestItems) {
+	auto data = lev->leveledList.list.Info();
+	auto next = lev->leveledList.list.Next();
+	while (data != NULL) {
+		if (data->form->GetFormType() == kFormType_LeveledItem) {
+			getInventoryFromTESLevItem(OBLIVION_CAST(data->form, TESForm, TESLevItem), itemList, addQuestItems);
+		}
+		else {
+			if (!isQuestItem(data->form) || addQuestItems) {
+				auto it = itemList.find(data->form);
+				int count = max(1, data->count);
+				if (it == itemList.end()) {
+					itemList.insert(std::make_pair(data->form, count));
+				}
+				else {
+					it->second += count;
+				}
+			}
+		}
+		if (next == NULL) {
+			break;
+		}
+		data = next->Info();
+		next = next->Next();
+	}
+}
+
+void getInventoryFromTESContainer(TESContainer* container, std::map<TESForm*, int>& itemList, bool addQuestItems) {
+	auto data = container->list.Info();
+	auto next = container->list.Next();
+	while (data != NULL) {
+		if (data->type->GetFormType() == kFormType_LeveledItem) {
+			getInventoryFromTESLevItem(OBLIVION_CAST(data->type, TESForm, TESLevItem), itemList, addQuestItems);
+		}
+		else {
+			if (!isQuestItem(data->type) || addQuestItems) {
+				auto it = itemList.find(data->type);
+				int count = max(1, data->count);
+				if (it == itemList.end()) {
+					itemList.insert(std::make_pair(data->type, count));
+				}
+				else {
+					it->second += count;
+				}
+			}
+		}
+		if (next == NULL) {
+			break;
+		}
+		data = next->Info();
+		next = next->Next();
+	}
+}
+
 void getContainerInventory(TESObjectREFR* ref, std::map<TESForm*, int> & itemList, bool addQuestItems) {
 	ExtraContainerChanges* cont = (ExtraContainerChanges*)ref->baseExtraList.GetByType(kExtraData_ContainerChanges);
 	while (cont != NULL && cont->data != NULL && cont->data->objList != NULL) {
@@ -365,6 +443,13 @@ void getContainerInventory(TESObjectREFR* ref, std::map<TESForm*, int> & itemLis
 			ptr = ptr->next;
 		}
 		cont = (ExtraContainerChanges*)ptr;
+	}
+	if (ref->GetFormType() == kFormType_ACRE) {
+		TESActorBase* actorBase = OBLIVION_CAST(ref->baseForm, TESForm, TESActorBase);
+		if (actorBase == NULL) {
+			return;
+		}
+		getInventoryFromTESContainer(&actorBase->container, itemList, addQuestItems);
 	}
 }
 
@@ -958,30 +1043,6 @@ void randomize(TESObjectREFR* ref, const char* function) {
 	else {
 		randomizeInventory(ref);
 	}
-}
-
-bool getFormsFromLeveledList(TESLevItem* lev, std::map<UInt32, TESForm*>& forms) {
-	auto data = lev->leveledList.list.Info();
-	auto next = lev->leveledList.list.Next();
-	while (data != NULL) {
-		if (data->form->GetFormType() == kFormType_LeveledItem) {
-			if (!getFormsFromLeveledList(OBLIVION_CAST(data->form, TESForm, TESLevItem), forms)) {
-				return false;
-			}
-		}
-		else {
-			if (isQuestItem(data->form) && oExcludeQuestItems) {
-				return false;
-			}
-			forms.insert(std::make_pair(data->form->GetFormType(), data->form));
-		}
-		if (next == NULL) {
-			break;
-		}
-		data = next->Info();
-		next = next->Next();
-	}
-	return true;
 }
 
 TESForm* getFormFromLeveledList(TESLevItem* lev) {
