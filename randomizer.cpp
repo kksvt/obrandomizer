@@ -19,6 +19,7 @@ int oExcludeQuestItems = 1;
 int oRandCreatures = 1;
 int oAddItems = 1;
 int oDeathItems = 1;
+int oWorldItems = 1;
 
 bool skipMod[0xFF] = { 0 };
 
@@ -38,7 +39,8 @@ void InitModExcludes() {
 		skipMod[randid] = true;
 	}
 	if (f != NULL) {
-		while (fscanf(f, "%255[^\n]\n", buf) > 0 /* != EOF*/) {
+		for (int i = 0; fscanf(f, "%255[^\n]\n", buf) > 0 /* != EOF*/ && i < 0xFF; ++i) {
+			//same reasoning as in InitConfig()
 			id = ModTable::Get().GetModIndex(buf);
 			if (id == 0xFF) {
 				_MESSAGE("Could not get mod ID for mod %s", buf);
@@ -90,6 +92,7 @@ void InitConfig() {
 		OBRN_CONFIGLINE(buf, oRandCreatures);
 		OBRN_CONFIGLINE(buf, oAddItems);
 		OBRN_CONFIGLINE(buf, oDeathItems);
+		OBRN_CONFIGLINE(buf, oWorldItems);
 		//set ZZZOBRNRandomQuest.oUseEssentialCreatures to 0
 		//set ZZZOBRNRandomQuest.oExcludeQuestItems to 1
 	}
@@ -253,6 +256,26 @@ bool tryToAddForm(TESForm* f) {
 		}
 	}
 	return false;
+}
+
+bool refIsItem(TESObjectREFR* ref) {
+	switch (ref->baseForm->GetFormType()) {
+	case kFormType_Armor:
+	case kFormType_Clothing:
+	case kFormType_Weapon:
+	case kFormType_Apparatus:
+	case kFormType_Book:
+	case kFormType_Ingredient:
+	case kFormType_Misc:
+	case kFormType_Ammo:
+	case kFormType_SoulGem:
+	case kFormType_Key:
+	case kFormType_AlchemyItem:
+	case kFormType_SigilStone:
+		return true;
+	default:
+		return false;
+	}
 }
 
 const char* formToString[] = {
@@ -1003,48 +1026,6 @@ void randomizeInventory(TESObjectREFR* ref) {
 	}
 }
 
-void randomize(TESObjectREFR* ref, const char* function) {
-	if (ref->GetFormType() == kFormType_ACRE) {
-		if (allCreatures.size() == 0) {
-			return;
-		}
-		if (strcmp(function, "ESP") == 0) {
-			QueueUIMessage_2("Randomizing creatures through the spell may cause issues", 1000, NULL, NULL);
-		}
-		else if (!oRandCreatures) {
-			return;
-		}
-		Actor* actor = OBLIVION_CAST(ref, TESObjectREFR, Actor);
-		if (actor == NULL) {
-			return;
-		}
-		UInt32 health = actor->GetBaseActorValue(kActorVal_Health), aggression = actor->GetBaseActorValue(kActorVal_Aggression);
-		if (health == 0) {
-			randomizeInventory(ref);
-			return;
-		}
-		std::map<TESForm*, int> keepItems;
-		getContainerInventory(ref, keepItems, true);
-		TESForm* oldBaseForm = ref->GetTemplateForm() != NULL ? ref->GetTemplateForm() : ref->baseForm,
-			* rando = LookupFormByID(allCreatures[rand() % allCreatures.size()]);
-#ifdef _DEBUG
-		_MESSAGE("%s: Going to randomize %s %08X into %s %08X", function, GetFullName(ref), ref->refID, GetFullName(rando), rando->refID);
-#endif
-		//TESActorBase* actorBase = OBLIVION_CAST(rando, TESForm, TESActorBase);
-		ref->baseForm = rando;
-		ref->SetTemplateForm(oldBaseForm);
-		actor->SetActorValue(kActorVal_Aggression, aggression);
-		for (auto it = keepItems.begin(); it != keepItems.end(); ++it) {
-			TESForm* item = it->first;
-			int cnt = it->second;
-			ref->AddItem(item, NULL, cnt);
-		}
-	}
-	else {
-		randomizeInventory(ref);
-	}
-}
-
 TESForm* getFormFromLeveledList(TESLevItem* lev) {
 	if (lev == NULL) {
 		return NULL;
@@ -1133,4 +1114,62 @@ bool getRandomByType(TESForm *f, UInt32& out) {
 		return getRandomForKey(ptr, key, out);
 	}
 	return false;
+}
+
+void randomize(TESObjectREFR* ref, const char* function) {
+	if (ref->GetFormType() == kFormType_ACRE) {
+		if (allCreatures.size() == 0) {
+			return;
+		}
+		if (strcmp(function, "ESP") == 0) {
+			QueueUIMessage_2("Randomizing creatures through the spell may cause issues", 1000, NULL, NULL);
+		}
+		else if (!oRandCreatures) {
+			return;
+		}
+		Actor* actor = OBLIVION_CAST(ref, TESObjectREFR, Actor);
+		if (actor == NULL) {
+			return;
+		}
+		UInt32 health = actor->GetBaseActorValue(kActorVal_Health), aggression = actor->GetBaseActorValue(kActorVal_Aggression);
+		if (health == 0) {
+			randomizeInventory(ref);
+			return;
+		}
+		std::map<TESForm*, int> keepItems;
+		getContainerInventory(ref, keepItems, true);
+		TESForm* oldBaseForm = ref->GetTemplateForm() != NULL ? ref->GetTemplateForm() : ref->baseForm,
+			* rando = LookupFormByID(allCreatures[rand() % allCreatures.size()]);
+#ifdef _DEBUG
+		_MESSAGE("%s: Going to randomize %s %08X into %s %08X", function, GetFullName(ref), ref->refID, GetFullName(rando), rando->refID);
+#endif
+		//TESActorBase* actorBase = OBLIVION_CAST(rando, TESForm, TESActorBase);
+		ref->baseForm = rando;
+		ref->SetTemplateForm(oldBaseForm);
+		actor->SetActorValue(kActorVal_Aggression, aggression);
+		for (auto it = keepItems.begin(); it != keepItems.end(); ++it) {
+			TESForm* item = it->first;
+			int cnt = it->second;
+			ref->AddItem(item, NULL, cnt);
+		}
+	}
+	else if (refIsItem(ref)) {
+		if (!oWorldItems) {
+			return;
+		}
+		if (isQuestItem(ref->baseForm) && !oExcludeQuestItems) {
+			return;
+		}
+		UInt32 selection;
+		if (getRandomByType(ref->baseForm, selection)) {
+			TESForm* rando = LookupFormByID(selection);
+#ifdef _DEBUG
+			_MESSAGE("%s: Going to randomize %s %08X into %s %08X", function, GetFullName(ref), ref->refID, GetFullName(rando), rando->refID);
+#endif
+			ref->baseForm = rando;
+		}
+	}
+	else {
+		randomizeInventory(ref);
+	}
 }

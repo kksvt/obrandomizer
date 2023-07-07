@@ -160,7 +160,8 @@ int __fastcall ConstructObject_Hook(unsigned char* _this, void* _edx, int a2, ch
 		if (form->IsReference()) {
 			if (oRandCreatures) {
 				TESObjectREFR* ref = OBLIVION_CAST(form, TESForm, TESObjectREFR);
-				if (ref != NULL && ref->baseForm != NULL && ref->GetFormType() == kFormType_ACRE) {
+				if (ref != NULL && ref->baseForm != NULL && 
+					(ref->GetFormType() == kFormType_ACRE || (oWorldItems && refIsItem(ref)))) {
 					if (files_read) {
 						randomize(ref, __FUNCTION__);
 					}

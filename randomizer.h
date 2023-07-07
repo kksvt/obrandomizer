@@ -111,13 +111,15 @@ bool tryToAddForm(TESForm* f);
 bool getRandomByType(TESForm* f, UInt32& out);
 const char* FormToString(int form);
 void InitConfig();
+bool refIsItem(TESObjectREFR* ref);
 
 extern std::map<UInt32, std::vector<UInt32>> allWeapons;
 extern std::map<UInt32, std::vector<UInt32>> allClothingAndArmor;
 extern std::map<UInt32, std::vector<UInt32>> allGenericItems;
 extern std::vector<UInt32> allCreatures;
-extern std::set<UInt32> allAdded;;
+extern std::set<UInt32> allAdded;
 
 extern int oRandCreatures;
 extern int oAddItems;
 extern int oDeathItems;
+extern int oWorldItems;
