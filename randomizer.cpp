@@ -38,6 +38,9 @@ void InitModExcludes() {
 		_MESSAGE("Randomizer.esp's ID is %02X", randid);
 		skipMod[randid] = true;
 	}
+	else {
+		_MESSAGE("Couldn't find Randomizer.esp's mod ID. Make sure that you did not rename the plugin file.");
+	}
 	if (f != NULL) {
 		for (int i = 0; fscanf(f, "%255[^\n]\n", buf) > 0 /* != EOF*/ && i < 0xFF; ++i) {
 			//same reasoning as in InitConfig()
@@ -178,6 +181,10 @@ bool tryToAddForm(TESForm* f) {
 			return false;
 		}
 		const char* name = GetFullName(f);
+		if (strncmp(name, "aaa", 3) == 0) {
+			//exception for some test objects that typically don't even have a working model
+			return false;
+		}
 		switch (f->GetFormType()) {
 		case kFormType_Creature:
 		{
@@ -1026,6 +1033,7 @@ void randomizeInventory(TESObjectREFR* ref) {
 	}
 }
 
+
 TESForm* getFormFromLeveledList(TESLevItem* lev) {
 	if (lev == NULL) {
 		return NULL;
@@ -1131,8 +1139,11 @@ void randomize(TESObjectREFR* ref, const char* function) {
 		if (actor == NULL) {
 			return;
 		}
-		UInt32 health = actor->GetBaseActorValue(kActorVal_Health), aggression = actor->GetBaseActorValue(kActorVal_Aggression);
+		UInt32 health = actor->GetBaseActorValue(kActorVal_Health), aggression = actor->GetActorValue(kActorVal_Aggression);//actor->GetBaseActorValue(kActorVal_Aggression);
 		if (health == 0) {
+#ifdef _DEBUG
+			_MESSAGE("%s: Dead creature %s %08X will be treated as a container", function, GetFullName(ref), ref->refID);
+#endif
 			randomizeInventory(ref);
 			return;
 		}
@@ -1157,7 +1168,10 @@ void randomize(TESObjectREFR* ref, const char* function) {
 		if (!oWorldItems) {
 			return;
 		}
-		if (isQuestItem(ref->baseForm) && !oExcludeQuestItems) {
+#ifdef _DEBUG
+		_MESSAGE("%s: World item randomization: will try to randomize %s %08X", function, GetFullName(ref), ref->refID);
+#endif
+		if (isQuestItem(ref->baseForm) && oExcludeQuestItems) {
 			return;
 		}
 		UInt32 selection;
@@ -1167,6 +1181,7 @@ void randomize(TESObjectREFR* ref, const char* function) {
 			_MESSAGE("%s: Going to randomize %s %08X into %s %08X", function, GetFullName(ref), ref->refID, GetFullName(rando), rando->refID);
 #endif
 			ref->baseForm = rando;
+			ref->Update3D();
 		}
 	}
 	else {

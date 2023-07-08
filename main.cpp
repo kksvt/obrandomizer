@@ -13,6 +13,7 @@ std::map<TESObjectREFR*, UInt32> restoreFlags;
 
 bool files_read = false;
 bool checked_mods = false;
+bool loading_game = false;
 
 #define CompileFiles_Addr 0x0044F3D0
 typedef int(__thiscall* CompileFiles_t)(DWORD*, char, char);
@@ -30,8 +31,8 @@ int __fastcall CompileFiles_Hook(DWORD* _this, void* _edx, char a2, char a3) {
 		fillUpWpRanges();
 		fillUpClothingRanges();
 		files_read = true;
-		for (auto it = toRandomize.begin(); it != toRandomize.end(); ++it) {
-			randomize(*it, __FUNCTION__);
+		for (auto it : toRandomize) {
+			randomize(it, __FUNCTION__);
 		}
 		toRandomize.clear();
 		allAdded.clear();
@@ -162,7 +163,7 @@ int __fastcall ConstructObject_Hook(unsigned char* _this, void* _edx, int a2, ch
 				TESObjectREFR* ref = OBLIVION_CAST(form, TESForm, TESObjectREFR);
 				if (ref != NULL && ref->baseForm != NULL && 
 					(ref->GetFormType() == kFormType_ACRE || (oWorldItems && refIsItem(ref)))) {
-					if (files_read) {
+					if (files_read && !loading_game) {
 						randomize(ref, __FUNCTION__);
 					}
 					else {
@@ -272,7 +273,7 @@ void __fastcall CalcLevListOuter_Hook(TESLeveledList* _this, void* _edx, int a2,
 	TESForm* lev = (TESForm*)((UInt32)_this - 36);
 	bool deathItem = oDeathItems && retAddress == (void*)0x005EA464,
 		creatureSpawn = allCreatures.size() && oRandCreatures && lev->GetFormType() == kFormType_LeveledCreature,
-		scriptAddItem = oAddItems && retAddress == (void*)0x005073FA /*called within a script*/ && lev->GetFormType() == kFormType_LeveledItem;;
+		scriptAddItem = oAddItems && retAddress == (void*)0x005073FA /*called within a script*/ && lev->GetFormType() == kFormType_LeveledItem;
 	if (a4 && (deathItem || creatureSpawn || scriptAddItem)) {
 		LevListResult_t* result = (LevListResult_t*)(a4 + 8);
 		while (result != NULL) {
@@ -296,6 +297,28 @@ void __fastcall CalcLevListOuter_Hook(TESLeveledList* _this, void* _edx, int a2,
 	}
 }
 
+//465D57 is the last addr where its still good
+#define LoadGame_Addr 0x00465860
+typedef char(__thiscall* LoadGame_t)(int, int, int, char);
+LoadGame_t LoadGame = NULL;
+
+char __fastcall LoadGame_Hook(int _this, void* _edx, int a2, int a3, char a4) {
+	//long story short, certain creatures (possibly only the ones with starting health being 0? but not all of them?)
+	//have their inventory reset somewhere between 0x00465D57 and the end of the LoadGame function if the game was restarted
+	//it would be possible to track down the exact spot where it gets reset but
+	//a) this hacky solution seems to work
+	//b) i was meant to release this mod 3 months ago
+	//c) it would take time
+	loading_game = true;
+	char result = LoadGame(_this, a2, a3, a4);
+	loading_game = false;
+	for (auto it : toRandomize) {
+		randomize(it, __FUNCTION__);
+	}
+	toRandomize.clear();
+	return result;
+}
+
 void InitHooks() {
 	InitTrampHook(ConstructObject, 8);
 	InitTrampHook(CompileFiles, 8);
@@ -304,6 +327,7 @@ void InitHooks() {
 	InitTrampHook(AddItem, 6);
 	InitTrampHook(LoadObject, 11);
 	InitTrampHook(CalcLevListOuter, 7);
+	InitTrampHook(LoadGame, 7);
 }
 
 unsigned int getNumItems(ItemMapPtr map) {

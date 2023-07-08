@@ -112,6 +112,8 @@ bool getRandomByType(TESForm* f, UInt32& out);
 const char* FormToString(int form);
 void InitConfig();
 bool refIsItem(TESObjectREFR* ref);
+void randomizeInventory(TESObjectREFR* ref);
+void getContainerInventory(TESObjectREFR* ref, std::map<TESForm*, int>& itemList, bool addQuestItems);
 
 extern std::map<UInt32, std::vector<UInt32>> allWeapons;
 extern std::map<UInt32, std::vector<UInt32>> allClothingAndArmor;
