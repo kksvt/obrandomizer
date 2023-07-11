@@ -102,6 +102,25 @@ enum RandClothes {
 
 typedef std::map<UInt32, std::vector<UInt32>>* ItemMapPtr;
 
+extern int oRandCreatures;
+extern int oAddItems;
+extern int oDeathItems;
+extern int oWorldItems;
+extern int oRandInventory;
+
+extern std::map<UInt32, std::vector<UInt32>> allWeapons;
+extern std::map<UInt32, std::vector<UInt32>> allClothingAndArmor;
+extern std::map<UInt32, std::vector<UInt32>> allGenericItems;
+extern std::vector<UInt32> allCreatures;
+extern std::vector<UInt32> allItems;
+extern std::set<UInt32> allAdded;
+
+extern std::list<TESObjectREFR*> toRandomize;
+extern std::map<TESObjectREFR*, UInt32> restoreFlags;
+
+extern bool loading_game;
+extern TESForm* obrnFlag;
+
 void InitModExcludes();
 void fillUpClothingRanges();
 void fillUpWpRanges();
@@ -109,19 +128,9 @@ void addOrAppend(ItemMapPtr map, const UInt32 key, const UInt32 value);
 void randomize(TESObjectREFR* ref, const char* function);
 bool tryToAddForm(TESForm* f);
 bool getRandomByType(TESForm* f, UInt32& out);
+bool getRandomBySetting(TESForm* f, UInt32& out, int option);
 const char* FormToString(int form);
 void InitConfig();
 bool refIsItem(TESObjectREFR* ref);
 void randomizeInventory(TESObjectREFR* ref);
-void getContainerInventory(TESObjectREFR* ref, std::map<TESForm*, int>& itemList, bool addQuestItems);
-
-extern std::map<UInt32, std::vector<UInt32>> allWeapons;
-extern std::map<UInt32, std::vector<UInt32>> allClothingAndArmor;
-extern std::map<UInt32, std::vector<UInt32>> allGenericItems;
-extern std::vector<UInt32> allCreatures;
-extern std::set<UInt32> allAdded;
-
-extern int oRandCreatures;
-extern int oAddItems;
-extern int oDeathItems;
-extern int oWorldItems;
+bool getContainerInventory(TESObjectREFR* ref, std::map<TESForm*, int>& itemList, bool addQuestItems);

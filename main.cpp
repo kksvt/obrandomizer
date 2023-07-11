@@ -8,9 +8,6 @@ OBSESerializationInterface	* g_serialization = NULL;
 OBSEArrayVarInterface		* g_arrayIntfc = NULL;
 OBSEScriptInterface			* g_scriptIntfc = NULL;
 
-std::list<TESObjectREFR*> toRandomize;
-std::map<TESObjectREFR*, UInt32> restoreFlags;
-
 bool files_read = false;
 bool checked_mods = false;
 bool loading_game = false;
@@ -35,6 +32,16 @@ int __fastcall CompileFiles_Hook(DWORD* _this, void* _edx, char a2, char a3) {
 			randomize(it, __FUNCTION__);
 		}
 		toRandomize.clear();
+		for (auto it : allAdded) {
+			TESForm* form = LookupFormByID(it);
+			if (form == NULL || form->GetFormType() == kFormType_Creature) {
+				continue;
+			}
+			allItems.push_back(it);
+		}
+		if (obrnFlag == NULL) {
+			_ERROR("Couldn't find OBRN Flag in the loaded files. Some features will not work properly.");
+		}
 		allAdded.clear();
 #ifdef _DEBUG
 		UInt32 numArmorClothing = 0, numWeapons = 0, numGenericItems = 0, numCreatures = allCreatures.size();
@@ -139,6 +146,9 @@ int __fastcall CompileFiles_Hook(DWORD* _this, void* _edx, char a2, char a3) {
 		for (auto it = allCreatures.begin(); it != allCreatures.end(); ++it) {
 			_MESSAGE("\t%s", GetFullName(LookupFormByID(*it)));
 		}
+		if (oRandInventory) {
+			_MESSAGE("There are %u total items", allItems.size());
+		}
 		_MESSAGE("There are %u weapons, %u generic items, %u pieces of clothing / armor and %u creatures in the lists", numWeapons, numGenericItems, numArmorClothing, numCreatures);
 #endif
 	}
@@ -163,7 +173,7 @@ int __fastcall ConstructObject_Hook(unsigned char* _this, void* _edx, int a2, ch
 				TESObjectREFR* ref = OBLIVION_CAST(form, TESForm, TESObjectREFR);
 				if (ref != NULL && ref->baseForm != NULL && 
 					(ref->GetFormType() == kFormType_ACRE || (oWorldItems && refIsItem(ref)))) {
-					if (files_read && !loading_game) {
+					if (files_read) {
 						randomize(ref, __FUNCTION__);
 					}
 					else {
@@ -215,7 +225,7 @@ int __fastcall AddItem_Hook(int _this, void* _edx, TESForm* a2, int a3, char a4)
 	UInt32 refID;
 	void* retAddress = _ReturnAddress();
 	if (oAddItems && !IsConsoleOpen() && retAddress == (void*)0x00507419 /*called within a script*/ 
-		&& getRandomByType(a2, refID)) {
+		&& getRandomBySetting(a2, refID, oAddItems)) {
 		if (TESForm * replacement = LookupFormByID(refID)) {
 			a2 = replacement;
 		}
@@ -224,10 +234,10 @@ int __fastcall AddItem_Hook(int _this, void* _edx, TESForm* a2, int a3, char a4)
 }
 
 #define LoadForm_Addr 0x004603E0
-typedef TESForm* (__stdcall* LoadForm_t)(int, /*int*/UInt32*);
+typedef TESForm* (__stdcall* LoadForm_t)(int, UInt32*);
 LoadForm_t LoadForm = NULL;
 
-TESForm* __stdcall LoadForm_Hook(int a1, /*int*/UInt32* a2) {
+TESForm* __stdcall LoadForm_Hook(int a1, UInt32* a2) {
 	TESForm* result = LoadForm(a1, a2);
 	if (oRandCreatures > 1 && result != NULL) {
 		if (result->GetFormType() == kFormType_ACRE && (a1 >> 24) == 0xFF) {
@@ -280,7 +290,7 @@ void __fastcall CalcLevListOuter_Hook(TESLeveledList* _this, void* _edx, int a2,
 			if (result->data != NULL) {
 				if (deathItem || scriptAddItem) {
 					UInt32 refID;
-					if (getRandomByType(result->data->item, refID)) {
+					if (getRandomBySetting(result->data->item, refID, deathItem ? oDeathItems : oAddItems)) {
 						result->data->item = LookupFormByID(refID);
 					}
 				}
@@ -303,7 +313,7 @@ typedef char(__thiscall* LoadGame_t)(int, int, int, char);
 LoadGame_t LoadGame = NULL;
 
 char __fastcall LoadGame_Hook(int _this, void* _edx, int a2, int a3, char a4) {
-	//long story short, certain creatures (possibly only the ones with starting health being 0? but not all of them?)
+	//long story short, certain creatures (possibly only the ones with starting health being 0 that didn't have any items taken off them)
 	//have their inventory reset somewhere between 0x00465D57 and the end of the LoadGame function if the game was restarted
 	//it would be possible to track down the exact spot where it gets reset but
 	//a) this hacky solution seems to work
