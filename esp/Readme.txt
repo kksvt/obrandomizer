@@ -3,7 +3,7 @@ Information
 =============
 Name: Oblivion Randomizer Mod
 Author: lost cause / brndd
-Date: July 10th 2023
+Date: July 13th 2023
 Version: 1.0.0
 
 =============
