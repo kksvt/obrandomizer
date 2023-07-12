@@ -12,6 +12,10 @@ bool files_read = false;
 bool checked_mods = false;
 bool loading_game = false;
 
+#define OBRN_VERSION_MAJOR 1
+#define OBRN_VERSION_MINOR 0
+#define OBRN_VERSION_REVISION 0
+
 #define CompileFiles_Addr 0x0044F3D0
 typedef int(__thiscall* CompileFiles_t)(DWORD*, char, char);
 CompileFiles_t CompileFiles = NULL;
@@ -389,7 +393,7 @@ bool OBSEPlugin_Query(const OBSEInterface * obse, PluginInfo * info)
 	// fill out the info structure
 	info->infoVersion = PluginInfo::kInfoVersion;
 	info->name = "obrandomizer";
-	info->version = 1;
+	info->version = (OBRN_VERSION_MAJOR << 24) | (OBRN_VERSION_MINOR << 16) | (OBRN_VERSION_REVISION << 8);
 
 	// version checks
 	if(!obse->isEditor)
