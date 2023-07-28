@@ -3,8 +3,8 @@ Information
 =============
 Name: Oblivion Randomizer Mod
 Author: lost cause / brndd
-Date: July 13th 2023
-Version: 1.0.0
+Date: July 28th 2023
+Version: 1.0.1
 
 =============
 Description
@@ -26,6 +26,11 @@ Oblivion Randomizer seeks to randomize as many parts of the game as possible, wh
 =============
 Changelog
 =============
+
+v1.0.1:
+* fixed errors in the randomization code that caused certain items to appear too rarely
+* fixed an error in the randomization code that caused actors to get huge numbers of arrows if oRandInventory was set to 2
+* fixed oWorldItems requiring oRandCreatures being set to 1 to work
 
 v1.0.0:
 * BACKWARDS SAVE INCOMPATIBILITY: saves made with older versions of the mod will not work properly when used with this version. You can still use them, but you might be locked out of completing creature-related quests.
@@ -154,8 +159,6 @@ In the Tutorial section, right after the first ambush, two rats are supposed to 
 
 6. oRandCreatures set to 2 might sometimes cause the game to crash when reloading a save
 It's not that big of a deal, since you will be able to properly load your desired save after launching the game again. Having said that, oRandCreatures set to 2 is not a recommended setting.
-
-7. oWorldItems set to 1 greatly lowers the stability
 
 =======================================
 Technical aspects / potential issues

@@ -14,7 +14,7 @@ bool loading_game = false;
 
 #define OBRN_VERSION_MAJOR 1
 #define OBRN_VERSION_MINOR 0
-#define OBRN_VERSION_REVISION 0
+#define OBRN_VERSION_REVISION 1
 
 #define CompileFiles_Addr 0x0044F3D0
 typedef int(__thiscall* CompileFiles_t)(DWORD*, char, char);
@@ -173,16 +173,14 @@ int __fastcall ConstructObject_Hook(unsigned char* _this, void* _edx, int a2, ch
 			return result;
 		}
 		if (form->IsReference()) {
-			if (oRandCreatures) {
-				TESObjectREFR* ref = OBLIVION_CAST(form, TESForm, TESObjectREFR);
-				if (ref != NULL && ref->baseForm != NULL && 
-					(ref->GetFormType() == kFormType_ACRE || (oWorldItems && refIsItem(ref)))) {
-					if (files_read) {
-						randomize(ref, __FUNCTION__);
-					}
-					else {
-						toRandomize.push_back(ref);
-					}
+			TESObjectREFR* ref = OBLIVION_CAST(form, TESForm, TESObjectREFR);
+			if (ref != NULL && ref->baseForm != NULL && 
+				((oRandCreatures && ref->GetFormType() == kFormType_ACRE) || (oWorldItems && refIsItem(ref)))) {
+				if (files_read) {
+					randomize(ref, __FUNCTION__);
+				}
+				else {
+					toRandomize.push_back(ref);
 				}
 			}
 		}

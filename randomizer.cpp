@@ -746,9 +746,9 @@ void randomizeInventory(TESObjectREFR* ref) {
 					ref->AddItem(ammo, NULL, myrand(20, 100));
 					if (!i) {
 						ref->Equip(ammo, 1, NULL, 0);
-						if (myrand(0, i + 1)) {
-							break;
-						}
+					}
+					if (myrand(0, i + 1)) {
+						break;
 					}
 				}
 			}
@@ -924,9 +924,6 @@ void randomizeInventory(TESObjectREFR* ref) {
 		//Ingredients
 		if (!myrand(0, 5)) {
 			for (int i = 0; i < 10; ++i) {
-				if (myrand(0, 3)) {
-					break;
-				}
 				if (getRandomForKey(&allGenericItems, kFormType_Ingredient, selection)) {
 					TESForm* item = LookupFormByID(selection);
 #ifdef _DEBUG
@@ -934,20 +931,23 @@ void randomizeInventory(TESObjectREFR* ref) {
 #endif
 					ref->AddItem(item, NULL, myrand(1, 6));
 				}
+				if (myrand(0, 3)) {
+					break;
+				}
 			}
 		}
 		//Apparatus
 		if (!myrand(0, 9)) {
 			for (int i = 0; i < 3; ++i) {
-				if (myrand(0, 2)) {
-					break;
-				}
 				if (getRandomForKey(&allGenericItems, kFormType_Apparatus, selection)) {
 					TESForm* item = LookupFormByID(selection);
 #ifdef _DEBUG
 					_MESSAGE("APPARATUS: %s receiving %s", GetFullName(ref), GetFullName(item));
 #endif
 					ref->AddItem(item, NULL, myrand(1, 2));
+				}
+				if (myrand(0, 2)) {
+					break;
 				}
 			}
 		}
