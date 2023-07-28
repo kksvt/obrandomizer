@@ -743,11 +743,11 @@ void randomizeInventory(TESObjectREFR* ref) {
 #ifdef _DEBUG
 					_MESSAGE("ARROW: %s receiving %s", GetFullName(ref), GetFullName(ammo));
 #endif
-					ref->AddItem(ammo, NULL, myrand(20, 100));
+					ref->AddItem(ammo, NULL, myrand(5, 30));
 					if (!i) {
 						ref->Equip(ammo, 1, NULL, 0);
 					}
-					if (myrand(0, i + 1)) {
+					if (myrand(0, i + 2)) {
 						break;
 					}
 				}
@@ -1093,7 +1093,7 @@ void randomizeInventory(TESObjectREFR* ref) {
 		if (!myrand(0, 4)) {
 			for (int i = 0; i < 4; ++i) {
 				if (getRandomForKey(&allGenericItems, kFormType_Ammo, selection)) {
-					ref->AddItem(LookupFormByID(selection), NULL, myrand(1, 100));
+					ref->AddItem(LookupFormByID(selection), NULL, myrand(1, 30));
 					if (myrand(0, i + 1)) {
 						break;
 					}
