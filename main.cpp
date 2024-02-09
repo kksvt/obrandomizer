@@ -14,7 +14,7 @@ bool loading_game = false;
 
 #define OBRN_VERSION_MAJOR 1
 #define OBRN_VERSION_MINOR 0
-#define OBRN_VERSION_REVISION 1
+#define OBRN_VERSION_REVISION 2
 
 #define CompileFiles_Addr 0x0044F3D0
 typedef int(__thiscall* CompileFiles_t)(DWORD*, char, char);
@@ -22,7 +22,6 @@ CompileFiles_t CompileFiles = NULL;
 
 int __fastcall CompileFiles_Hook(DWORD* _this, void* _edx, char a2, char a3) {
 	if (!checked_mods) {
-		srand(time(NULL));
 		InitModExcludes();
 		InitConfig();
 		checked_mods = true;
@@ -32,27 +31,26 @@ int __fastcall CompileFiles_Hook(DWORD* _this, void* _edx, char a2, char a3) {
 		fillUpWpRanges();
 		fillUpClothingRanges();
 		files_read = true;
-		for (auto it : toRandomize) {
+		for (auto &it : toRandomize) {
 			randomize(it, __FUNCTION__);
 		}
 		toRandomize.clear();
-		for (auto it : allAdded) {
-			TESForm* form = LookupFormByID(it);
-			if (form == NULL || form->GetFormType() == kFormType_Creature) {
+		for (auto form : allAdded) {
+			if (form == NULL || form->GetFormType() == kFormType_Creature || form->GetFormType() == kFormType_Spell) {
 				continue;
 			}
-			allItems.push_back(it);
+			allItems.push_back(form);
 		}
 		if (obrnFlag == NULL) {
 			_ERROR("Couldn't find OBRN Flag in the loaded files. Some features will not work properly.");
 		}
 		allAdded.clear();
 #ifdef _DEBUG
-		UInt32 numArmorClothing = 0, numWeapons = 0, numGenericItems = 0, numCreatures = allCreatures.size();
+		UInt32 numArmorClothing = 0, numWeapons = 0, numGenericItems = 0, numCreatures = allCreatures.size(), numSpells = 0;
 		const char* name = NULL;
 		_MESSAGE("At the end of the list generation, we have:");
-		for (auto it = allClothingAndArmor.begin(); it != allClothingAndArmor.end(); ++it) {
-			switch (it->first) {
+		for (const auto &it : allClothingAndArmor) {
+			switch (it.first) {
 			case kSlot_Head:
 				name = "Helmets";
 				break;
@@ -108,14 +106,14 @@ int __fastcall CompileFiles_Hook(DWORD* _this, void* _edx, char a2, char a3) {
 				name = "Unknown";
 				break;
 			}
-			_MESSAGE("(CLOTHING) %s (%i): %i", name, it->first, it->second.size());
-			for (auto cloth = it->second.begin(); cloth != it->second.end(); ++cloth) {
-				_MESSAGE("\t%s", GetFullName(LookupFormByID(*cloth)));
+			_MESSAGE("(CLOTHING) %s (%i): %i", name, it.first, it.second.size());
+			for (const auto &cloth : it.second) {
+				_MESSAGE("\t%s", GetFullName(cloth));
 			}
-			numArmorClothing += it->second.size();
+			numArmorClothing += it.second.size();
 		}
-		for (auto it = allWeapons.begin(); it != allWeapons.end(); ++it) {
-			switch (it->first) {
+		for (const auto &it : allWeapons) {
+			switch (it.first) {
 			case TESObjectWEAP::kType_BladeOneHand:
 				name = "Blade";
 				break;
@@ -132,28 +130,60 @@ int __fastcall CompileFiles_Hook(DWORD* _this, void* _edx, char a2, char a3) {
 				name = "Unknown Weapon";
 				break;
 			}
-			_MESSAGE("(WEAPON) %s: %i", name, it->second.size());
-			for (auto wp = it->second.begin(); wp != it->second.end(); ++wp) {
-				_MESSAGE("\t%s", GetFullName(LookupFormByID(*wp)));
+			_MESSAGE("(WEAPON) %s: %i", name, it.second.size());
+			for (const auto &wp : it.second) {
+				_MESSAGE("\t%s", GetFullName(wp));
 			}
-			numWeapons += it->second.size();
+			numWeapons += it.second.size();
 		}
-		for (auto it = allGenericItems.begin(); it != allGenericItems.end(); ++it) {
-			name = FormToString(it->first);
-			_MESSAGE("(GENERIC): %s: %i", name, it->second.size());
-			for (auto g = it->second.begin(); g != it->second.end(); ++g) {
-				_MESSAGE("\t%s", GetFullName(LookupFormByID(*g)));
+		for (const auto &it : allGenericItems) {
+			name = FormToString(it.first);
+			_MESSAGE("(GENERIC): %s: %i", name, it.second.size());
+			for (const auto &g : it.second) {
+				_MESSAGE("\t%s", GetFullName(g));
 			}
-			numGenericItems += it->second.size();
+			numGenericItems += it.second.size();
+		}
+		for (const auto& it : allSpellsBySchool) {
+			switch (it.first) {
+			case EffectSetting::kEffect_Alteration:
+				name = "Alteration";
+				break;
+			case EffectSetting::kEffect_Conjuration:
+				name = "Conjuration";
+				break;
+			case EffectSetting::kEffect_Destruction:
+				name = "Destruction";
+				break;
+			case EffectSetting::kEffect_Illusion:
+				name = "Illusion";
+				break;
+			case EffectSetting::kEffect_Mysticism:
+				name = "Mysticism";
+				break;
+			case EffectSetting::kEffect_Restoration:
+				name = "Restoration";
+				break;
+			default:
+				name = "Unknown";
+				break;
+			}
+			_MESSAGE("(SPELL): %s: %i", name, it.second.size());
+			for (const auto& spell : it.second) {
+				_MESSAGE("\t%s", GetFullName(spell));
+			}
+			numSpells += it.second.size();
 		}
 		_MESSAGE("(CREATURE): %i", numCreatures);
-		for (auto it = allCreatures.begin(); it != allCreatures.end(); ++it) {
-			_MESSAGE("\t%s", GetFullName(LookupFormByID(*it)));
+		for (const auto &it : allCreatures) {
+			_MESSAGE("\t%s", GetFullName(it));
 		}
 		if (oRandInventory) {
 			_MESSAGE("There are %u total items", allItems.size());
 		}
-		_MESSAGE("There are %u weapons, %u generic items, %u pieces of clothing / armor and %u creatures in the lists", numWeapons, numGenericItems, numArmorClothing, numCreatures);
+		_MESSAGE("There are %u weapons, %u generic items, %u pieces of clothing / armor, %u creatures and %u spells in the lists", 
+			numWeapons, numGenericItems, numArmorClothing, numCreatures, numSpells);
+		_MESSAGE("Empty leveled lists: %u\nNon empty leveled lists: %u", emptyLeveledLists, nonEmptyLeveledLists);
 #endif
 	}
 	return result;
@@ -162,6 +192,8 @@ int __fastcall CompileFiles_Hook(DWORD* _this, void* _edx, char a2, char a3) {
 #define ConstructObject_Addr 0x0044DCF0
 typedef int(__thiscall* ConstructObject_t)(unsigned char*, int, char);
 ConstructObject_t ConstructObject = NULL;
+
+TESForm* order = NULL;
 
 int __fastcall ConstructObject_Hook(unsigned char* _this, void* _edx, int a2, char a3) { //a3 == 1 -> reading from the first file? (master?)
 	int result = ConstructObject(_this, a2, a3);
@@ -184,8 +216,11 @@ int __fastcall ConstructObject_Hook(unsigned char* _this, void* _edx, int a2, ch
 				}
 			}
 		}
-		else if (!files_read) {
-			if (retAddress == (void*)0x0044F221) { //called by a function that loads forms from an esp/esm
+		else {
+			if (!files_read && retAddress == (void*)0x0044F221) { //called by a function that loads forms from an esp/esm
+				if (form->GetFormType() == kFormType_Creature || form->GetFormType() == kFormType_NPC) {
+					//debugDumpSpells(form);
+				}
 				tryToAddForm(form);
 			}
 		}
@@ -224,11 +259,9 @@ typedef int(__thiscall* AddItem_t)(int, TESForm*, int, char);
 AddItem_t AddItem = NULL;
 
 int __fastcall AddItem_Hook(int _this, void* _edx, TESForm* a2, int a3, char a4) {
-	UInt32 refID;
 	void* retAddress = _ReturnAddress();
-	if (oAddItems && !IsConsoleOpen() && retAddress == (void*)0x00507419 /*called within a script*/ 
-		&& getRandomBySetting(a2, refID, oAddItems)) {
-		if (TESForm * replacement = LookupFormByID(refID)) {
+	if (oAddItems && !IsConsoleOpen() && retAddress == (void*)0x00507419 /*called within a script*/ ) {
+		if (TESForm * replacement = getRandomBySetting(a2, oAddItems)) {
 			a2 = replacement;
 		}
 	}
@@ -291,13 +324,12 @@ void __fastcall CalcLevListOuter_Hook(TESLeveledList* _this, void* _edx, int a2,
 		while (result != NULL) {
 			if (result->data != NULL) {
 				if (deathItem || scriptAddItem) {
-					UInt32 refID;
-					if (getRandomBySetting(result->data->item, refID, deathItem ? oDeathItems : oAddItems)) {
-						result->data->item = LookupFormByID(refID);
+					if (TESForm* ref = getRandomBySetting(result->data->item, deathItem ? oDeathItems : oAddItems)) {
+						result->data->item = ref;
 					}
 				}
 				else if (result->data->item->GetFormType() == kFormType_Creature) {
-					TESForm* rando = LookupFormByID(allCreatures[rand() % allCreatures.size()]), * old = result->data->item;
+					TESForm* rando = allCreatures[rng(0, allCreatures.size() - 1)], * old = result->data->item;
 #ifdef _DEBUG
 					_MESSAGE("%s: Going to randomize %s %08X into %s %08X", __FUNCTION__, GetFullName(old), old->refID, GetFullName(rando), rando->refID);
 #endif
@@ -331,6 +363,91 @@ char __fastcall LoadGame_Hook(int _this, void* _edx, int a2, int a3, char a4) {
 	return result;
 }
 
+//char __thiscall sub_5E0990(_DWORD** this, int a2)
+#define AddSpell_Addr 0x005E0990
+typedef char(__thiscall* AddSpell_t)(Actor*, SpellItem*);
+AddSpell_t AddSpell = NULL;
+
+bool opened = false;
+
+std::set<void*> calls;
+
+char __fastcall AddSpell_Hook(Actor* _this, void* _edx, SpellItem* spell) {
+	if (spell != NULL) {
+		if (!opened) {
+			remove("AddSpell_Hook.txt");
+			opened = true;
+		}
+		FILE* f = fopen("AddSpell_Hook.txt", "a");
+		fprintf(f, "Adding %s to %s\n", GetFullName(spell), GetFullName(_this));
+		fclose(f);
+		spell = OBLIVION_CAST(allSpells[rng(0, allSpells.size() - 1)], TESForm, SpellItem);
+	}
+	return AddSpell(_this, spell);
+}
+
+//char __thiscall sub_6646D0(_DWORD** this, int a2)
+#define AddSpellOuter_Addr 0x006646D0
+typedef char(__thiscall* AddSpellOuter_t)(Actor*, SpellItem*);
+AddSpellOuter_t AddSpellOuter = NULL;
+
+char __fastcall AddSpellOuter_Hook(Actor* _this, void* _edx, SpellItem* spell) {
+	spell = OBLIVION_CAST(allSpells[rng(0, allSpells.size() - 1)], TESForm, SpellItem);
+	char result = AddSpellOuter(_this, spell);
+	void* retAddress = _ReturnAddress();
+	/*if (!calls.contains(retAddress)) {
+		calls.insert(retAddress);
+		FILE* f = fopen("AddSpell_calls.txt", "a");
+		fprintf(f, "Ret: %08X, Actor: %s, Spell: %s\n", retAddress, GetFullName(_this), GetFullName(spell));
+		fclose(f);
+	}*/
+	return result;
+}
+
+//int __thiscall sub_5F3E00(_DWORD* this)
+#define CastSpell_Addr 0x005F3E00
+typedef int(__thiscall* CastSpell_t)(DWORD*);
+
+CastSpell_t CastSpell = NULL;
+
+int __fastcall CastSpell_Hook(DWORD* _this, void* _edx) {
+	int result = CastSpell(_this);
+	TESForm* caster = (TESForm*)((DWORD*)_this - 23);
+	//FILE* f = fopen(__FUNCTION__, "a");
+	//fprintf(f, "cast: _this: %08X, caster: %s result: %08X %u %i, ret: %08X\n", _this, GetFullName(caster), result, result, result, _ReturnAddress());
+	//fclose(f);
+	//TESLevSpell;
+	return result;
+}
+
+//char __thiscall sub_699190(_DWORD *this, _DWORD *a2, int a3, int a4)
+#define CastSpellOuter_Addr 0x00699190
+typedef char(__thiscall* CastSpellOuter_t)(DWORD*, MagicItem*, int, int);
+CastSpellOuter_t CastSpellOuter = NULL;
+
+std::map<SpellItem*, MagicItem*> spellMapping;
+
+char __fastcall CastSpellOuter_Hook(DWORD* _this, void* _edx, MagicItem* a2, int a3, int a4) {
+	//_this - 23 = caster
+	TESForm* caster = (TESForm*)(DWORD*)(_this - 23);
+	SpellItem* spell = OBLIVION_CAST(a2, MagicItem, SpellItem);
+	if (spell != NULL && allSpells.size()) {
+		if (!spellMapping.contains(spell)) {
+			spellMapping.insert(std::make_pair(spell, OBLIVION_CAST(allSpells[rand() % allSpells.size()], TESForm, MagicItem)));
+			FILE* f = fopen(__FUNCTION__".txt", "a");
+			fprintf(f, "Spell %s will now become %s. Caster type is %s\n", GetFullName(spell), GetFullName(OBLIVION_CAST(spellMapping.at(spell), MagicItem, TESForm)), FormToString(caster->GetFormType()));
+			fclose(f);
+		}
+		a2 = spellMapping.at(spell);
+
+	}
+	char result = CastSpellOuter(_this, a2, a3, a4);
+	/*FILE* f = fopen(__FUNCTION__, "a");
+	fprintf(f, "_this: %08X, a2: %s (%08X), a3: %08X %u %i, a4: %08X %u %i: result: %u, ret: %08X\n", _this, a2->name.m_data, a2, a3, a3, a3, a4, a4, a4, result, _ReturnAddress());
+	fclose(f);*/
+	return result;
+}
+
 void InitHooks() {
 	InitTrampHook(ConstructObject, 8);
 	InitTrampHook(CompileFiles, 8);
@@ -339,7 +456,12 @@ void InitHooks() {
 	InitTrampHook(AddItem, 6);
 	InitTrampHook(LoadObject, 11);
 	InitTrampHook(CalcLevListOuter, 7);
-	InitTrampHook(LoadGame, 7);
+
+	//InitTrampHook(LoadGame, 7);
+	//InitTrampHook(AddSpell, 7);
+	InitTrampHook(AddSpellOuter, 7);
+	//InitTrampHook(CastSpell, 7);
+	InitTrampHook(CastSpellOuter, 7);
 }
 
 unsigned int getNumItems(ItemMapPtr map) {
@@ -357,12 +479,17 @@ unsigned int getNumItems(ItemMapPtr map) {
 #if OBLIVION
 
 bool Cmd_OBRNListsReady_Execute(COMMAND_ARGS) {
+	static bool stats = false; //there's no point in spamming it every reload
 	*result = allCreatures.size() && allClothingAndArmor.size() && allGenericItems.size() && allWeapons.size() ? 1.0 : 0.0;
-	Console_Print("Randomizer's Lists Info:");
-	Console_Print("Number of creatures: %u", allCreatures.size());
-	Console_Print("Number of clothing/armor: %u", getNumItems(&allClothingAndArmor));
-	Console_Print("Number of generic items: %u", getNumItems(&allGenericItems));
-	Console_Print("Number of weapons: %u", getNumItems(&allWeapons));
+	if (!stats) {
+		Console_Print("Randomizer's Lists Info:");
+		Console_Print("Number of creatures: %u", allCreatures.size());
+		Console_Print("Number of clothing/armor: %u", getNumItems(&allClothingAndArmor));
+		Console_Print("Number of generic items: %u", getNumItems(&allGenericItems));
+		Console_Print("Number of weapons: %u", getNumItems(&allWeapons));
+		Console_Print("Number of spells: %u", allSpells.size());
+		stats = true;
+	}
 	return true;
 }
 

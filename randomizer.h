@@ -29,6 +29,7 @@ extern OBSEScriptInterface* g_scriptInterface;
 #include "obse/GameObjects.h"
 #include "obse/ModTable.h"
 #include <string>
+#include <random>
 
 #include "hook.h"
 
@@ -100,7 +101,7 @@ enum RandClothes {
 
 #define TESFORM2STRING(x) #x
 
-typedef std::map<UInt32, std::vector<UInt32>>* ItemMapPtr;
+typedef std::map<UInt32, std::vector<TESForm*>>* ItemMapPtr;
 
 extern int oRandCreatures;
 extern int oAddItems;
@@ -108,29 +109,34 @@ extern int oDeathItems;
 extern int oWorldItems;
 extern int oRandInventory;
 
-extern std::map<UInt32, std::vector<UInt32>> allWeapons;
-extern std::map<UInt32, std::vector<UInt32>> allClothingAndArmor;
-extern std::map<UInt32, std::vector<UInt32>> allGenericItems;
-extern std::vector<UInt32> allCreatures;
-extern std::vector<UInt32> allItems;
-extern std::set<UInt32> allAdded;
+extern std::map<UInt32, std::vector<TESForm*>> allWeapons;
+extern std::map<UInt32, std::vector<TESForm*>> allClothingAndArmor;
+extern std::map<UInt32, std::vector<TESForm*>> allGenericItems;
+extern std::map<UInt32, std::vector<TESForm*>> allSpellsBySchool;
+extern std::vector<TESForm*> allCreatures;
+extern std::vector<TESForm*> allItems;
+extern std::vector<TESForm*> allSpells;
+extern std::set<TESForm*> allAdded;
 
 extern std::list<TESObjectREFR*> toRandomize;
 extern std::map<TESObjectREFR*, UInt32> restoreFlags;
 
 extern bool loading_game;
+extern bool files_read;
 extern TESForm* obrnFlag;
 
 void InitModExcludes();
 void fillUpClothingRanges();
 void fillUpWpRanges();
-void addOrAppend(ItemMapPtr map, const UInt32 key, const UInt32 value);
+void addOrAppend(ItemMapPtr map, const UInt32 key, TESForm* value);
 void randomize(TESObjectREFR* ref, const char* function);
 bool tryToAddForm(TESForm* f);
-bool getRandomByType(TESForm* f, UInt32& out);
-bool getRandomBySetting(TESForm* f, UInt32& out, int option);
+TESForm* getRandomByType(TESForm* f);
+TESForm* getRandomBySetting(TESForm* f, int option);
 const char* FormToString(int form);
 void InitConfig();
 bool refIsItem(TESObjectREFR* ref);
 void randomizeInventory(TESObjectREFR* ref);
 bool getContainerInventory(TESObjectREFR* ref, std::map<TESForm*, int>& itemList, bool addQuestItems);
+UInt32 rng(UInt32 a, UInt32 b);
+void debugDumpSpells(TESForm* form);
