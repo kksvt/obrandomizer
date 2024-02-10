@@ -1308,7 +1308,7 @@ void randomize(TESObjectREFR* ref, const char* function) {
 		std::map<TESForm*, int> keepItems;
 		getContainerInventory(ref, keepItems, true);
 		TESForm* oldBaseForm = ref->GetTemplateForm() != NULL ? ref->GetTemplateForm() : ref->baseForm,
-			* rando = allCreatures[rng(0, allCreatures.size())];
+			* rando = allCreatures[rng(0, allCreatures.size() - 1)];
 		TESCreature* creature = OBLIVION_CAST(rando, TESForm, TESCreature);
 		if (creature != NULL) {
 			getInventoryFromTESContainer(&creature->container, keepItems, true);
