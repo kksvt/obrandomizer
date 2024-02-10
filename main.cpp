@@ -31,7 +31,7 @@ int __fastcall CompileFiles_Hook(DWORD* _this, void* _edx, char a2, char a3) {
 		fillUpWpRanges();
 		fillUpClothingRanges();
 		files_read = true;
-		for (auto &it : toRandomize) {
+		for (auto it : toRandomize) {
 			randomize(it, __FUNCTION__);
 		}
 		toRandomize.clear();
@@ -107,7 +107,7 @@ int __fastcall CompileFiles_Hook(DWORD* _this, void* _edx, char a2, char a3) {
 				break;
 			}
 			_MESSAGE("(CLOTHING) %s (%i): %i", name, it.first, it.second.size());
-			for (const auto &cloth : it.second) {
+			for (auto cloth : it.second) {
 				_MESSAGE("\t%s", GetFullName(cloth));
 			}
 			numArmorClothing += it.second.size();
@@ -131,7 +131,7 @@ int __fastcall CompileFiles_Hook(DWORD* _this, void* _edx, char a2, char a3) {
 				break;
 			}
 			_MESSAGE("(WEAPON) %s: %i", name, it.second.size());
-			for (const auto &wp : it.second) {
+			for (auto wp : it.second) {
 				_MESSAGE("\t%s", GetFullName(wp));
 			}
 			numWeapons += it.second.size();
@@ -139,12 +139,12 @@ int __fastcall CompileFiles_Hook(DWORD* _this, void* _edx, char a2, char a3) {
 		for (const auto &it : allGenericItems) {
 			name = FormToString(it.first);
 			_MESSAGE("(GENERIC): %s: %i", name, it.second.size());
-			for (const auto &g : it.second) {
+			for (auto g : it.second) {
 				_MESSAGE("\t%s", GetFullName(g));
 			}
 			numGenericItems += it.second.size();
 		}
-		for (const auto& it : allSpellsBySchool) {
+		for (const auto &it : allSpellsBySchool) {
 			switch (it.first) {
 			case EffectSetting::kEffect_Alteration:
 				name = "Alteration";
@@ -169,13 +169,13 @@ int __fastcall CompileFiles_Hook(DWORD* _this, void* _edx, char a2, char a3) {
 				break;
 			}
 			_MESSAGE("(SPELL): %s: %i", name, it.second.size());
-			for (const auto& spell : it.second) {
+			for (auto spell : it.second) {
 				_MESSAGE("\t%s", GetFullName(spell));
 			}
 			numSpells += it.second.size();
 		}
 		_MESSAGE("(CREATURE): %i", numCreatures);
-		for (const auto &it : allCreatures) {
+		for (auto it : allCreatures) {
 			_MESSAGE("\t%s", GetFullName(it));
 		}
 		if (oRandInventory) {
@@ -183,7 +183,6 @@ int __fastcall CompileFiles_Hook(DWORD* _this, void* _edx, char a2, char a3) {
 		}
 		_MESSAGE("There are %u weapons, %u generic items, %u pieces of clothing / armor, %u creatures and %u spells in the lists", 
 			numWeapons, numGenericItems, numArmorClothing, numCreatures, numSpells);
-		_MESSAGE("Empty leveled lists: %u\nNon empty leveled lists: %u", emptyLeveledLists, nonEmptyLeveledLists);
 #endif
 	}
 	return result;
@@ -457,11 +456,11 @@ void InitHooks() {
 	InitTrampHook(LoadObject, 11);
 	InitTrampHook(CalcLevListOuter, 7);
 
-	//InitTrampHook(LoadGame, 7);
+	InitTrampHook(LoadGame, 7);
 	//InitTrampHook(AddSpell, 7);
-	InitTrampHook(AddSpellOuter, 7);
+	//InitTrampHook(AddSpellOuter, 7);
 	//InitTrampHook(CastSpell, 7);
-	InitTrampHook(CastSpellOuter, 7);
+	//InitTrampHook(CastSpellOuter, 7);
 }
 
 unsigned int getNumItems(ItemMapPtr map) {
