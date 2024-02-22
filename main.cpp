@@ -30,17 +30,17 @@ int __fastcall CompileFiles_Hook(DWORD* _this, void* _edx, char a2, char a3) {
 	if (result) {
 		fillUpWpRanges();
 		fillUpClothingRanges();
-		files_read = true;
-		for (auto it : toRandomize) {
-			randomize(it, __FUNCTION__);
-		}
-		toRandomize.clear();
 		for (auto form : allAdded) {
 			if (form == NULL || form->GetFormType() == kFormType_Creature || form->GetFormType() == kFormType_Spell) {
 				continue;
 			}
 			allItems.push_back(form);
 		}
+		files_read = true;
+		for (auto it : toRandomize) {
+			randomize(it, __FUNCTION__);
+		}
+		toRandomize.clear();
 		if (obrnFlag == NULL) {
 			_ERROR("Couldn't find OBRN Flag in the loaded files. Some features will not work properly.");
 		}

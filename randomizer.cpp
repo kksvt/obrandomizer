@@ -497,30 +497,35 @@ std::pair<TESForm*, int> getFormFromTESLevItem(TESLevItem* lev, bool addQuestIte
 
 bool getInventoryFromTESContainer(TESContainer* container, std::map<TESForm*, int>& itemList, bool addQuestItems) {
 	bool hasFlag = false;
+	if (container == NULL) {
+		return false;
+	}
 	auto data = container->list.Info();
 	auto next = container->list.Next();
 	while (data != NULL) {
-		if (data->type->GetFormType() == kFormType_LeveledItem) {
-			auto it = getFormFromTESLevItem(OBLIVION_CAST(data->type, TESForm, TESLevItem), addQuestItems);
-			if (it.first != NULL) {
-				itemList.insert(it);
-			}
-		}
-		else {
-			if (data->type == obrnFlag) {
-#ifdef _DEBUG
-				_MESSAGE("%s: OBRN Flag has been found for", __FUNCTION__);
-#endif
-				hasFlag = true;
-			}
-			else if (!isQuestItem(data->type) || addQuestItems) {
-				auto it = itemList.find(data->type);
-				int count = max(1, data->count);
-				if (it == itemList.end()) {
-					itemList.insert(std::make_pair(data->type, count));
+		if (data->type != NULL) {
+			if (data->type->GetFormType() == kFormType_LeveledItem) {
+				auto it = getFormFromTESLevItem(OBLIVION_CAST(data->type, TESForm, TESLevItem), addQuestItems);
+				if (it.first != NULL) {
+					itemList.insert(it);
 				}
-				else {
-					it->second += count;
+			}
+			else {
+				if (data->type == obrnFlag) {
+#ifdef _DEBUG
+					_MESSAGE("%s: OBRN Flag has been found for", __FUNCTION__);
+#endif
+					hasFlag = true;
+				}
+				else if (!isQuestItem(data->type) || addQuestItems) {
+					auto it = itemList.find(data->type);
+					int count = max(1, data->count);
+					if (it == itemList.end()) {
+						itemList.insert(std::make_pair(data->type, count));
+					}
+					else {
+						it->second += count;
+					}
 				}
 			}
 		}
@@ -1186,7 +1191,7 @@ TESForm* getRandom(TESForm* f) {
 		//if (f->GetModIndex() != 0xFF && skipMod[f->GetModIndex()]) { //very important!
 		return NULL;
 	}
-	return allItems[rand() % allItems.size()];;
+	return allItems[rng(0, allItems.size() - 1)];
 }
 
 TESForm* getRandomByType(TESForm *f) {
