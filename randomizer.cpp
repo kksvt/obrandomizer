@@ -7,14 +7,16 @@
 NiTMapBase<unsigned int, TESForm*>* allObjects = (NiTMapBase<unsigned int, TESForm*>*)FORMMAPADDR;
 */
 
-std::map<UInt32, std::vector<TESForm*>> allWeapons;
-std::map<UInt32, std::vector<TESForm*>> allClothingAndArmor;
-std::map<UInt32, std::vector<TESForm*>> allGenericItems;
-std::map<UInt32, std::vector<TESForm*>> allSpellsBySchool;
-std::vector<TESForm*> allCreatures;
-std::vector<TESForm*> allItems;
-std::vector<TESForm*> allSpells;
-std::set<TESForm*> allAdded;
+std::map<UInt32, std::vector<UInt32>> allWeapons;
+std::map<UInt32, std::vector<UInt32>> allClothingAndArmor;
+std::map<UInt32, std::vector<UInt32>> allGenericItems;
+std::map<UInt32, std::vector<UInt32>> allSpellsBySchool;
+std::vector<UInt32> allCreatures;
+std::vector<UInt32> allItems;
+std::vector<UInt32> allSpells;
+std::set<UInt32> allAdded;
+
+std::set<UInt32> allRandomized;
 
 std::list<TESObjectREFR*> toRandomize;
 std::map<TESObjectREFR*, UInt32> restoreFlags;
@@ -174,14 +176,14 @@ TESForm* getRandomForKey(ItemMapPtr map, const UInt32 key) {
 		_ERROR("Couldn't find key %u for map %s\n", key, (map == &allWeapons ? "weapons" : (map == &allClothingAndArmor ? "clothing & armor" : "generic")));
 		return NULL;
 	}
-	return it->second[rng(0, it->second.size() - 1)];
+	return LookupFormByID(it->second[rng(0, it->second.size() - 1)]);
 }
 
-void addOrAppend(ItemMapPtr map, const UInt32 key, TESForm* value) {
+void addOrAppend(ItemMapPtr map, const UInt32 key, UInt32 value) {
 	allAdded.insert(value);
 	auto it = map->find(key);
 	if (it == map->end()) {
-		std::vector<TESForm*> itemList;
+		std::vector<UInt32> itemList;
 		itemList.push_back(value);
 		map->insert(std::make_pair(key, itemList));
 	}
@@ -219,7 +221,7 @@ bool tryToAddForm(TESForm* f) {
 	if (f->GetFormType() != kFormType_Creature && f->IsQuestItem() && oExcludeQuestItems) {
 		return false;
 	}
-	if (allAdded.find(f) != allAdded.end()) {
+	if (allAdded.find(f->refID) != allAdded.end()) {
 		return false;
 	}
 	if (strncmp(name, "aaa", 3) == 0) {
@@ -241,8 +243,8 @@ bool tryToAddForm(TESForm* f) {
 				//hardcoded exception for SI grummites without a working model + excluding some test creatures
 				if (strstr(name, "Test") == NULL && (strncmp(name, "Grummite Whelp", 14) ||
 					strncmp(model, "GobLegs01.NIF", 13))) {
-					allCreatures.push_back(f);
-					allAdded.insert(f);
+					allCreatures.push_back(f->refID);
+					allAdded.insert(f->refID);
 					return true;
 				}
 			}
@@ -302,14 +304,14 @@ bool tryToAddForm(TESForm* f) {
 		SpellItem* spell = OBLIVION_CAST(f, TESForm, SpellItem);
 		ptr = &allSpellsBySchool;
 		key = spell->GetSchool();
-		allSpells.push_back(f);
+		allSpells.push_back(f->refID);
 		break;
 	}
 	default:
 		break;
 	}
 	if (ptr != NULL && key != 0xFFFFFFFF) {
-		addOrAppend(ptr, key, f);
+		addOrAppend(ptr, key, f->refID);
 		return true;
 	}
 	return false;
@@ -497,9 +499,6 @@ std::pair<TESForm*, int> getFormFromTESLevItem(TESLevItem* lev, bool addQuestIte
 
 bool getInventoryFromTESContainer(TESContainer* container, std::map<TESForm*, int>& itemList, bool addQuestItems) {
 	bool hasFlag = false;
-	if (container == NULL) {
-		return false;
-	}
 	auto data = container->list.Info();
 	auto next = container->list.Next();
 	while (data != NULL) {
@@ -566,7 +565,7 @@ bool getContainerInventory(TESObjectREFR* ref, std::map<TESForm*, int> & itemLis
 			}
 		}
 		BSExtraData* ptr = cont->next;
-		while (ptr != NULL) {// && cont->next->type == kExtraData_ContainerChanges) {
+		while (ptr != NULL) {
 			if (ptr->type == kExtraData_ContainerChanges) {
 				break;
 			}
@@ -575,6 +574,7 @@ bool getContainerInventory(TESObjectREFR* ref, std::map<TESForm*, int> & itemLis
 		cont = (ExtraContainerChanges*)ptr;
 	}
 	if (ref->GetFormType() == kFormType_ACRE && !itemList.size()) {
+		_MESSAGE("Creature %s", GetFullName(ref));
 		TESActorBase* actorBase = OBLIVION_CAST(ref->baseForm, TESForm, TESActorBase);
 		if (actorBase == NULL) {
 			return false;
@@ -616,9 +616,9 @@ void randomizeInventory(TESObjectREFR* ref) {
 #endif
 		ref->AddItem(obrnFlag, NULL, 1);
 	}
-	for (auto it = removeItems.begin(); it != removeItems.end(); ++it) {
-		TESForm* item = it->first;
-		int cnt = it->second;
+	for (const auto &it : removeItems) {
+		TESForm* item = it.first;
+		int cnt = it.second;
 		if (oRandInventory == 1) {
 			switch (item->refID) {
 			case ITEM_GOLD:
@@ -1191,7 +1191,7 @@ TESForm* getRandom(TESForm* f) {
 		//if (f->GetModIndex() != 0xFF && skipMod[f->GetModIndex()]) { //very important!
 		return NULL;
 	}
-	return allItems[rng(0, allItems.size() - 1)];
+	return LookupFormByID(allItems[rng(0, allItems.size() - 1)]);
 }
 
 TESForm* getRandomByType(TESForm *f) {
@@ -1281,6 +1281,13 @@ TESForm* getRandomBySetting(TESForm* f, int option) {
 }
 
 void randomize(TESObjectREFR* ref, const char* function) {
+	if (allRandomized.contains(ref->refID) && strcmp(function, "ESP")) {
+#ifdef _DEBUG
+		_MESSAGE("%s: ref %s %08X has already been randomized.", function, GetFullName(ref), ref->refID);
+#endif
+		return;
+	}
+	allRandomized.insert(ref->refID);
 #ifdef _DEBUG
 	_MESSAGE("%s: Attempting to randomize %s %08X", function, GetFullName(ref), ref->refID);
 #endif
@@ -1300,24 +1307,16 @@ void randomize(TESObjectREFR* ref, const char* function) {
 		}
 		UInt32 health = actor->GetBaseActorValue(kActorVal_Health), aggression = actor->GetActorValue(kActorVal_Aggression);//actor->GetBaseActorValue(kActorVal_Aggression);
 		if (health == 0) {
-			if (loading_game) {
-				toRandomize.push_back(ref);
-				return;
-			}
-#ifdef _DEBUG
-			_MESSAGE("%s: Dead creature %s %08X will be treated as a container", function, GetFullName(ref), ref->refID);
-#endif
-			randomizeInventory(ref);
 			return;
 		}
 		std::map<TESForm*, int> keepItems;
-		getContainerInventory(ref, keepItems, true);
+		//getContainerInventory(ref, keepItems, true);
 		TESForm* oldBaseForm = ref->GetTemplateForm() != NULL ? ref->GetTemplateForm() : ref->baseForm,
-			* rando = allCreatures[rng(0, allCreatures.size() - 1)];
+			* rando = LookupFormByID(allCreatures[rng(0, allCreatures.size() - 1)]);
 		TESCreature* creature = OBLIVION_CAST(rando, TESForm, TESCreature);
-		if (creature != NULL) {
+		/*if (creature != NULL) {
 			getInventoryFromTESContainer(&creature->container, keepItems, true);
-		}
+		}*/
 #ifdef _DEBUG
 		_MESSAGE("%s: Going to randomize %s %08X into %s %08X", function, GetFullName(ref), ref->refID, GetFullName(rando), rando->refID);
 #endif
@@ -1325,9 +1324,9 @@ void randomize(TESObjectREFR* ref, const char* function) {
 		ref->baseForm = rando;
 		ref->SetTemplateForm(oldBaseForm);
 		actor->SetActorValue(kActorVal_Aggression, aggression);
-		for (auto it = keepItems.begin(); it != keepItems.end(); ++it) {
-			TESForm* item = it->first;
-			int cnt = it->second;
+		for (const auto &it : keepItems) {
+			TESForm* item = it.first;
+			int cnt = it.second;
 			ref->AddItem(item, NULL, cnt);
 		}
 	}

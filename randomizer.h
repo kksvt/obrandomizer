@@ -101,7 +101,7 @@ enum RandClothes {
 
 #define TESFORM2STRING(x) #x
 
-typedef std::map<UInt32, std::vector<TESForm*>>* ItemMapPtr;
+typedef std::map<UInt32, std::vector<UInt32>>* ItemMapPtr;
 
 extern int oRandCreatures;
 extern int oAddItems;
@@ -109,26 +109,27 @@ extern int oDeathItems;
 extern int oWorldItems;
 extern int oRandInventory;
 
-extern std::map<UInt32, std::vector<TESForm*>> allWeapons;
-extern std::map<UInt32, std::vector<TESForm*>> allClothingAndArmor;
-extern std::map<UInt32, std::vector<TESForm*>> allGenericItems;
-extern std::map<UInt32, std::vector<TESForm*>> allSpellsBySchool;
-extern std::vector<TESForm*> allCreatures;
-extern std::vector<TESForm*> allItems;
-extern std::vector<TESForm*> allSpells;
-extern std::set<TESForm*> allAdded;
+extern std::map<UInt32, std::vector<UInt32>> allWeapons;
+extern std::map<UInt32, std::vector<UInt32>> allClothingAndArmor;
+extern std::map<UInt32, std::vector<UInt32>> allGenericItems;
+extern std::map<UInt32, std::vector<UInt32>> allSpellsBySchool;
+extern std::vector<UInt32> allCreatures;
+extern std::vector<UInt32> allItems;
+extern std::vector<UInt32> allSpells;
+extern std::set<UInt32> allAdded;
+
+extern std::set<UInt32> allRandomized;
 
 extern std::list<TESObjectREFR*> toRandomize;
 extern std::map<TESObjectREFR*, UInt32> restoreFlags;
 
-extern bool loading_game;
 extern bool files_read;
 extern TESForm* obrnFlag;
 
 void InitModExcludes();
 void fillUpClothingRanges();
 void fillUpWpRanges();
-void addOrAppend(ItemMapPtr map, const UInt32 key, TESForm* value);
+void addOrAppend(ItemMapPtr map, const UInt32 key, UInt32 value);
 void randomize(TESObjectREFR* ref, const char* function);
 bool tryToAddForm(TESForm* f);
 TESForm* getRandomByType(TESForm* f);

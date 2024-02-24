@@ -10,7 +10,6 @@ OBSEScriptInterface			* g_scriptIntfc = NULL;
 
 bool files_read = false;
 bool checked_mods = false;
-bool loading_game = false;
 
 #define OBRN_VERSION_MAJOR 1
 #define OBRN_VERSION_MINOR 0
@@ -23,18 +22,18 @@ CompileFiles_t CompileFiles = NULL;
 int __fastcall CompileFiles_Hook(DWORD* _this, void* _edx, char a2, char a3) {
 	if (!checked_mods) {
 		InitModExcludes();
-		InitConfig();
 		checked_mods = true;
 	}
 	int result = CompileFiles(_this, a2, a3);
 	if (result) {
 		fillUpWpRanges();
 		fillUpClothingRanges();
-		for (auto form : allAdded) {
+		for (auto it : allAdded) {
+			TESForm* form = LookupFormByID(it);
 			if (form == NULL || form->GetFormType() == kFormType_Creature || form->GetFormType() == kFormType_Spell) {
 				continue;
 			}
-			allItems.push_back(form);
+			allItems.push_back(it);
 		}
 		files_read = true;
 		for (auto it : toRandomize) {
@@ -108,7 +107,7 @@ int __fastcall CompileFiles_Hook(DWORD* _this, void* _edx, char a2, char a3) {
 			}
 			_MESSAGE("(CLOTHING) %s (%i): %i", name, it.first, it.second.size());
 			for (auto cloth : it.second) {
-				_MESSAGE("\t%s", GetFullName(cloth));
+				_MESSAGE("\t%s", GetFullName(LookupFormByID(cloth)));
 			}
 			numArmorClothing += it.second.size();
 		}
@@ -132,7 +131,7 @@ int __fastcall CompileFiles_Hook(DWORD* _this, void* _edx, char a2, char a3) {
 			}
 			_MESSAGE("(WEAPON) %s: %i", name, it.second.size());
 			for (auto wp : it.second) {
-				_MESSAGE("\t%s", GetFullName(wp));
+				_MESSAGE("\t%s", GetFullName(LookupFormByID(wp)));
 			}
 			numWeapons += it.second.size();
 		}
@@ -140,7 +139,7 @@ int __fastcall CompileFiles_Hook(DWORD* _this, void* _edx, char a2, char a3) {
 			name = FormToString(it.first);
 			_MESSAGE("(GENERIC): %s: %i", name, it.second.size());
 			for (auto g : it.second) {
-				_MESSAGE("\t%s", GetFullName(g));
+				_MESSAGE("\t%s", GetFullName(LookupFormByID(g)));
 			}
 			numGenericItems += it.second.size();
 		}
@@ -170,13 +169,13 @@ int __fastcall CompileFiles_Hook(DWORD* _this, void* _edx, char a2, char a3) {
 			}
 			_MESSAGE("(SPELL): %s: %i", name, it.second.size());
 			for (auto spell : it.second) {
-				_MESSAGE("\t%s", GetFullName(spell));
+				_MESSAGE("\t%s", GetFullName(LookupFormByID(spell)));
 			}
 			numSpells += it.second.size();
 		}
 		_MESSAGE("(CREATURE): %i", numCreatures);
 		for (auto it : allCreatures) {
-			_MESSAGE("\t%s", GetFullName(it));
+			_MESSAGE("\t%s", GetFullName(LookupFormByID(it)));
 		}
 		if (oRandInventory) {
 			_MESSAGE("There are %u total items", allItems.size());
@@ -191,8 +190,6 @@ int __fastcall CompileFiles_Hook(DWORD* _this, void* _edx, char a2, char a3) {
 #define ConstructObject_Addr 0x0044DCF0
 typedef int(__thiscall* ConstructObject_t)(unsigned char*, int, char);
 ConstructObject_t ConstructObject = NULL;
-
-TESForm* order = NULL;
 
 int __fastcall ConstructObject_Hook(unsigned char* _this, void* _edx, int a2, char a3) { //a3 == 1 -> reading from the first file? (master?)
 	int result = ConstructObject(_this, a2, a3);
@@ -217,41 +214,12 @@ int __fastcall ConstructObject_Hook(unsigned char* _this, void* _edx, int a2, ch
 		}
 		else {
 			if (!files_read && retAddress == (void*)0x0044F221) { //called by a function that loads forms from an esp/esm
-				if (form->GetFormType() == kFormType_Creature || form->GetFormType() == kFormType_NPC) {
-					//debugDumpSpells(form);
-				}
 				tryToAddForm(form);
 			}
 		}
 	}
 	return result;
 }
-
-/*
-#define CalcLevList_Addr 0x0046CC70
-typedef int(__thiscall* CalcLevList_t)(BYTE*, int, DWORD*, WORD*, DWORD*);
-CalcLevList_t CalcLevList = NULL;
-
-int __fastcall CalcLevList_Hook(BYTE* _this, void* _edx, int a2, DWORD* a3, WORD* a4, DWORD* a5) {
-	int result = CalcLevList(_this, a2, a3, a4, a5);
-	if (oRandCreatures && result) {
-		TESForm* form = *(TESForm**)a3;
-		if (form != NULL) {
-			if (form->GetFormType() == kFormType_Creature && allCreatures.size()) {
-				TESForm** a3_real = (TESForm**)a3;
-				TESForm* rando = LookupFormByID(allCreatures[rand() % allCreatures.size()]);
-#ifdef _DEBUG
-				FILE* f = fopen("randomization.log", "a");
-				fprintf(f, "%s: Going to randomize %s %08X into %s %08X\n", __FUNCTION__, GetFullName(*a3_real), (*a3_real)->refID, GetFullName(rando), rando->refID);
-				fclose(f);
-#endif
-				*a3_real = rando;
-			}
-		}
-	}
-	return result;
-}
-*/
 
 #define AddItem_Addr 0x00469D10
 typedef int(__thiscall* AddItem_t)(int, TESForm*, int, char);
@@ -268,10 +236,44 @@ int __fastcall AddItem_Hook(int _this, void* _edx, TESForm* a2, int a3, char a4)
 }
 
 #define LoadForm_Addr 0x004603E0
-typedef TESForm* (__stdcall* LoadForm_t)(int, UInt32*);
+typedef TESForm* (__stdcall* LoadForm_t)(UInt32, UInt32*);
 LoadForm_t LoadForm = NULL;
 
-TESForm* __stdcall LoadForm_Hook(int a1, UInt32* a2) {
+
+TESForm* __stdcall LoadForm_Hook(UInt32 a1, UInt32* a2) {
+	static int calls = 0;
+	FILE* f = fopen(__FUNCTION__"_calls.txt", "a");
+	TESForm* fa1 = LookupFormByID(a1);
+	TESForm* fa2 = LookupFormByID(a2[1]);
+	const char* a1_name = GetFullName(fa1);
+	const char* a2_name = GetFullName(fa2);
+	const char* a1_form = "invalid", * a2_form = "invalid";
+	if (fa1 != NULL && fa2 != NULL) {
+		a1_form = FormToString(fa1->GetFormType());
+		TESForm* v3 = fa1, * v4 = fa2;
+		TESBoundObject* v2 = OBLIVION_CAST(v4, TESForm, TESBoundObject);
+		TESObjectREFR* v6 = OBLIVION_CAST(v3, TESForm, TESObjectREFR);
+		TESBoundObject* bound = (*(TESBoundObject*(__thiscall**)(TESObjectREFR*))(*(DWORD*)v6 + 368))(v6);
+		fprintf(f, "v2 = %08X %s %08X %s, bound = %08X %s %08X %s, the player: %08X %08X, v4: %08X, v3: %08X\n", 
+			v2, GetFullName(v2), v2->refID, FormToString(v2->GetFormType()),
+			bound, GetFullName(bound), bound->refID, FormToString(bound->GetFormType()), 
+			*g_thePlayer, (*g_thePlayer)->refID, v4, v3);
+		//this crashes if we attempt to load the player's character
+		//the bound object has a proper full name, but the refID is 0. why is it not initialized properly?
+		//returning here prevents crash on the second game load, but then the loadform
+		//appears to have duplicate calls for the same object and causes crash on subsequent reloads
+		fclose(f);
+		return v3;
+	}
+	if (fa2 != NULL) {
+		a2_form = FormToString(fa2->GetFormType());
+	}
+	//fprintf(f, "%d: a1: %08X, a2: %08X, a2[0]: %08X, a2[1]: %08X, a1 form: %s (%s), a2[1] form: %s (%s)\n", ++calls, a1, a2, a2[0], a2[1], 
+	//	a1_name, a1_form, a2_name, a2_form);
+	fclose(f);
+	/*if (fa1 != NULL) {
+		FormHeap_Free(fa1);
+	}*/
 	TESForm* result = LoadForm(a1, a2);
 	if (oRandCreatures > 1 && result != NULL) {
 		if (result->GetFormType() == kFormType_ACRE && (a1 >> 24) == 0xFF) {
@@ -328,7 +330,7 @@ void __fastcall CalcLevListOuter_Hook(TESLeveledList* _this, void* _edx, int a2,
 					}
 				}
 				else if (result->data->item->GetFormType() == kFormType_Creature) {
-					TESForm* rando = allCreatures[rng(0, allCreatures.size() - 1)], * old = result->data->item;
+					TESForm* rando = LookupFormByID(allCreatures[rng(0, allCreatures.size() - 1)]), * old = result->data->item;
 #ifdef _DEBUG
 					_MESSAGE("%s: Going to randomize %s %08X into %s %08X", __FUNCTION__, GetFullName(old), old->refID, GetFullName(rando), rando->refID);
 #endif
@@ -338,28 +340,6 @@ void __fastcall CalcLevListOuter_Hook(TESLeveledList* _this, void* _edx, int a2,
 			result = result->next;
 		}
 	}
-}
-
-//465D57 is the last addr where its still good
-#define LoadGame_Addr 0x00465860
-typedef char(__thiscall* LoadGame_t)(int, int, int, char);
-LoadGame_t LoadGame = NULL;
-
-char __fastcall LoadGame_Hook(int _this, void* _edx, int a2, int a3, char a4) {
-	//long story short, certain creatures (possibly only the ones with starting health being 0 that didn't have any items taken off them)
-	//have their inventory reset somewhere between 0x00465D57 and the end of the LoadGame function if the game was restarted
-	//it would be possible to track down the exact spot where it gets reset but
-	//a) this hacky solution seems to work
-	//b) i was meant to release this mod 3 months ago
-	//c) it would take time
-	loading_game = true;
-	char result = LoadGame(_this, a2, a3, a4);
-	loading_game = false;
-	for (auto it : toRandomize) {
-		randomize(it, __FUNCTION__);
-	}
-	toRandomize.clear();
-	return result;
 }
 
 //char __thiscall sub_5E0990(_DWORD** this, int a2)
@@ -450,13 +430,20 @@ char __fastcall CastSpellOuter_Hook(DWORD* _this, void* _edx, MagicItem* a2, int
 void InitHooks() {
 	InitTrampHook(ConstructObject, 8);
 	InitTrampHook(CompileFiles, 8);
-	//InitTrampHook(CalcLevList, 5);
-	InitTrampHook(LoadForm, 7);
-	InitTrampHook(AddItem, 6);
-	InitTrampHook(LoadObject, 11);
-	InitTrampHook(CalcLevListOuter, 7);
-
-	InitTrampHook(LoadGame, 7);
+	if (1 || oRandCreatures > 1) {
+		//this hook's existence causes crashes on reloading as it appears to prevent existing reference forms
+		//from being removed from the memory. a possible threading issue, as the pseudocode prints out the warning below
+		// based on certain values from GetCurrentThreadId()
+		//"2024/02/24 04:05:08  [0045C7CC] [WARNING]   DeleteForm() was called, but the game is not being loaded."
+		InitTrampHook(LoadForm, 7);
+		//InitTrampHook(LoadObject, 11);
+	}
+	if (oAddItems || oDeathItems) {
+		InitTrampHook(AddItem, 6);
+	}
+	if (oAddItems || oDeathItems || oRandCreatures) {
+		InitTrampHook(CalcLevListOuter, 7);
+	}
 	//InitTrampHook(AddSpell, 7);
 	//InitTrampHook(AddSpellOuter, 7);
 	//InitTrampHook(CastSpell, 7);
@@ -465,8 +452,8 @@ void InitHooks() {
 
 unsigned int getNumItems(ItemMapPtr map) {
 	unsigned int num = 0;
-	for (auto it = map->begin(); it != map->end(); ++it) {
-		num += (*it).second.size();
+	for (const auto &it: *map) {
+		num += it.second.size();
 	}
 	return num;
 }
@@ -602,6 +589,7 @@ bool OBSEPlugin_Load(const OBSEInterface * obse)
 
 		// get an OBSEScriptInterface to use for argument extraction
 		g_scriptInterface = (OBSEScriptInterface*)obse->QueryInterface(kInterface_Script);
+		InitConfig();
 		InitHooks();
 	}
 
