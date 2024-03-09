@@ -29,6 +29,7 @@ extern OBSEScriptInterface* g_scriptInterface;
 #include "obse/GameObjects.h"
 #include "obse/ModTable.h"
 #include <string>
+#include <unordered_set>
 #include <random>
 
 #include "hook.h"
@@ -99,6 +100,12 @@ enum RandClothes {
 	OBRNRC_UPPER = 8,
 };
 
+enum class ItemRetrievalFlag {
+	all,
+	noQuestItems,
+	rejectOnQuestItem
+};
+
 #define TESFORM2STRING(x) #x
 
 typedef std::map<UInt32, std::vector<UInt32>>* ItemMapPtr;
@@ -108,6 +115,7 @@ extern int oAddItems;
 extern int oDeathItems;
 extern int oWorldItems;
 extern int oRandInventory;
+extern int oRandSpells;
 
 extern std::map<UInt32, std::vector<UInt32>> allWeapons;
 extern std::map<UInt32, std::vector<UInt32>> allClothingAndArmor;
@@ -116,9 +124,9 @@ extern std::map<UInt32, std::vector<UInt32>> allSpellsBySchool;
 extern std::vector<UInt32> allCreatures;
 extern std::vector<UInt32> allItems;
 extern std::vector<UInt32> allSpells;
-extern std::set<UInt32> allAdded;
+extern std::unordered_set<UInt32> allAdded;
 
-extern std::set<UInt32> allRandomized;
+extern std::unordered_set<UInt32> allRandomized;
 
 extern std::list<TESObjectREFR*> toRandomize;
 extern std::map<TESObjectREFR*, UInt32> restoreFlags;
@@ -134,10 +142,10 @@ void randomize(TESObjectREFR* ref, const char* function);
 bool tryToAddForm(TESForm* f);
 TESForm* getRandomByType(TESForm* f);
 TESForm* getRandomBySetting(TESForm* f, int option);
-const char* FormToString(int form);
+const char* formIDToString(int form);
 void InitConfig();
 bool refIsItem(TESObjectREFR* ref);
 void randomizeInventory(TESObjectREFR* ref);
-bool getContainerInventory(TESObjectREFR* ref, std::map<TESForm*, int>& itemList, bool addQuestItems);
+bool getContainerInventory(TESObjectREFR* ref, std::map<TESForm*, int>& itemList, ItemRetrievalFlag flag);
 UInt32 rng(UInt32 a, UInt32 b);
 void debugDumpSpells(TESForm* form);

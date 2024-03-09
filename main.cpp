@@ -136,7 +136,7 @@ int __fastcall CompileFiles_Hook(DWORD* _this, void* _edx, char a2, char a3) {
 			numWeapons += it.second.size();
 		}
 		for (const auto &it : allGenericItems) {
-			name = FormToString(it.first);
+			name = formIDToString(it.first);
 			_MESSAGE("(GENERIC): %s: %i", name, it.second.size());
 			for (auto g : it.second) {
 				_MESSAGE("\t%s", GetFullName(LookupFormByID(g)));
@@ -241,6 +241,7 @@ LoadForm_t LoadForm = NULL;
 
 
 TESForm* __stdcall LoadForm_Hook(UInt32 a1, UInt32* a2) {
+#ifdef _DEBUG_LOADFORM
 	static int calls = 0;
 	FILE* f = fopen(__FUNCTION__"_calls.txt", "a");
 	TESForm* fa1 = LookupFormByID(a1);
@@ -249,24 +250,24 @@ TESForm* __stdcall LoadForm_Hook(UInt32 a1, UInt32* a2) {
 	const char* a2_name = GetFullName(fa2);
 	const char* a1_form = "invalid", * a2_form = "invalid";
 	if (fa1 != NULL && fa2 != NULL) {
-		a1_form = FormToString(fa1->GetFormType());
+		a1_form = formIDToString(fa1->GetFormType());
 		TESForm* v3 = fa1, * v4 = fa2;
 		TESBoundObject* v2 = OBLIVION_CAST(v4, TESForm, TESBoundObject);
 		TESObjectREFR* v6 = OBLIVION_CAST(v3, TESForm, TESObjectREFR);
 		TESBoundObject* bound = (*(TESBoundObject*(__thiscall**)(TESObjectREFR*))(*(DWORD*)v6 + 368))(v6);
 		fprintf(f, "v2 = %08X %s %08X %s, bound = %08X %s %08X %s, the player: %08X %08X, v4: %08X, v3: %08X\n", 
-			v2, GetFullName(v2), v2->refID, FormToString(v2->GetFormType()),
-			bound, GetFullName(bound), bound->refID, FormToString(bound->GetFormType()), 
+			v2, GetFullName(v2), v2->refID, formIDToString(v2->GetFormType()),
+			bound, GetFullName(bound), bound->refID, formIDToString(bound->GetFormType()), 
 			*g_thePlayer, (*g_thePlayer)->refID, v4, v3);
 		//this crashes if we attempt to load the player's character
 		//the bound object has a proper full name, but the refID is 0. why is it not initialized properly?
 		//returning here prevents crash on the second game load, but then the loadform
 		//appears to have duplicate calls for the same object and causes crash on subsequent reloads
 		fclose(f);
-		return v3;
+		//return v3;
 	}
 	if (fa2 != NULL) {
-		a2_form = FormToString(fa2->GetFormType());
+		a2_form = formIDToString(fa2->GetFormType());
 	}
 	//fprintf(f, "%d: a1: %08X, a2: %08X, a2[0]: %08X, a2[1]: %08X, a1 form: %s (%s), a2[1] form: %s (%s)\n", ++calls, a1, a2, a2[0], a2[1], 
 	//	a1_name, a1_form, a2_name, a2_form);
@@ -274,6 +275,7 @@ TESForm* __stdcall LoadForm_Hook(UInt32 a1, UInt32* a2) {
 	/*if (fa1 != NULL) {
 		FormHeap_Free(fa1);
 	}*/
+#endif
 	TESForm* result = LoadForm(a1, a2);
 	if (oRandCreatures > 1 && result != NULL) {
 		if (result->GetFormType() == kFormType_ACRE && (a1 >> 24) == 0xFF) {
@@ -342,60 +344,22 @@ void __fastcall CalcLevListOuter_Hook(TESLeveledList* _this, void* _edx, int a2,
 	}
 }
 
-//char __thiscall sub_5E0990(_DWORD** this, int a2)
-#define AddSpell_Addr 0x005E0990
-typedef char(__thiscall* AddSpell_t)(Actor*, SpellItem*);
-AddSpell_t AddSpell = NULL;
-
-bool opened = false;
-
-std::set<void*> calls;
-
-char __fastcall AddSpell_Hook(Actor* _this, void* _edx, SpellItem* spell) {
-	if (spell != NULL) {
-		if (!opened) {
-			remove("AddSpell_Hook.txt");
-			opened = true;
-		}
-		FILE* f = fopen("AddSpell_Hook.txt", "a");
-		fprintf(f, "Adding %s to %s\n", GetFullName(spell), GetFullName(_this));
-		fclose(f);
-		spell = OBLIVION_CAST(allSpells[rng(0, allSpells.size() - 1)], TESForm, SpellItem);
-	}
-	return AddSpell(_this, spell);
-}
-
 //char __thiscall sub_6646D0(_DWORD** this, int a2)
 #define AddSpellOuter_Addr 0x006646D0
 typedef char(__thiscall* AddSpellOuter_t)(Actor*, SpellItem*);
 AddSpellOuter_t AddSpellOuter = NULL;
 
 char __fastcall AddSpellOuter_Hook(Actor* _this, void* _edx, SpellItem* spell) {
-	spell = OBLIVION_CAST(allSpells[rng(0, allSpells.size() - 1)], TESForm, SpellItem);
+	if ((void*)_this == (void*)(*g_thePlayer) /* && !IsConsoleOpen*/) {
+		TESForm* rando = getRandomBySetting(OBLIVION_CAST(spell, SpellItem, TESForm), oRandSpells);
+		if (rando != NULL) {
+#ifdef _DEBUG
+			_MESSAGE("%s: Spell %s will now become %s, ret: %08X", __FUNCTION__, GetFullName(spell), GetFullName(rando), _ReturnAddress());
+#endif
+			spell = OBLIVION_CAST(rando, TESForm, SpellItem);
+		}
+	}
 	char result = AddSpellOuter(_this, spell);
-	void* retAddress = _ReturnAddress();
-	/*if (!calls.contains(retAddress)) {
-		calls.insert(retAddress);
-		FILE* f = fopen("AddSpell_calls.txt", "a");
-		fprintf(f, "Ret: %08X, Actor: %s, Spell: %s\n", retAddress, GetFullName(_this), GetFullName(spell));
-		fclose(f);
-	}*/
-	return result;
-}
-
-//int __thiscall sub_5F3E00(_DWORD* this)
-#define CastSpell_Addr 0x005F3E00
-typedef int(__thiscall* CastSpell_t)(DWORD*);
-
-CastSpell_t CastSpell = NULL;
-
-int __fastcall CastSpell_Hook(DWORD* _this, void* _edx) {
-	int result = CastSpell(_this);
-	TESForm* caster = (TESForm*)((DWORD*)_this - 23);
-	//FILE* f = fopen(__FUNCTION__, "a");
-	//fprintf(f, "cast: _this: %08X, caster: %s result: %08X %u %i, ret: %08X\n", _this, GetFullName(caster), result, result, result, _ReturnAddress());
-	//fclose(f);
-	//TESLevSpell;
 	return result;
 }
 
@@ -404,50 +368,55 @@ int __fastcall CastSpell_Hook(DWORD* _this, void* _edx) {
 typedef char(__thiscall* CastSpellOuter_t)(DWORD*, MagicItem*, int, int);
 CastSpellOuter_t CastSpellOuter = NULL;
 
-std::map<SpellItem*, MagicItem*> spellMapping;
+std::unordered_map<SpellItem*, MagicItem*> spellMapping;
 
 char __fastcall CastSpellOuter_Hook(DWORD* _this, void* _edx, MagicItem* a2, int a3, int a4) {
 	//_this - 23 = caster
 	TESForm* caster = (TESForm*)(DWORD*)(_this - 23);
 	SpellItem* spell = OBLIVION_CAST(a2, MagicItem, SpellItem);
-	if (spell != NULL && allSpells.size()) {
+	if ((void*)(*g_thePlayer) != (void*)caster && spell != NULL && allSpells.size()) {
 		if (!spellMapping.contains(spell)) {
-			spellMapping.insert(std::make_pair(spell, OBLIVION_CAST(allSpells[rand() % allSpells.size()], TESForm, MagicItem)));
-			FILE* f = fopen(__FUNCTION__".txt", "a");
-			fprintf(f, "Spell %s will now become %s. Caster type is %s\n", GetFullName(spell), GetFullName(OBLIVION_CAST(spellMapping.at(spell), MagicItem, TESForm)), FormToString(caster->GetFormType()));
-			fclose(f);
+			TESForm *rando = getRandomBySetting(OBLIVION_CAST(a2, MagicItem, TESForm), oRandSpells);
+			if (rando != NULL) {
+				spellMapping.insert(std::make_pair(spell, OBLIVION_CAST(rando, TESForm, MagicItem)));
+#ifdef _DEBUG
+			_MESSAGE("%s: Spell %s will now become %s. Caster type is %s %08X", __FUNCTION__, GetFullName(spell), GetFullName(OBLIVION_CAST(spellMapping.at(spell), MagicItem, TESForm)), formIDToString(caster->GetFormType()), caster);
+#endif
+			}
 		}
 		a2 = spellMapping.at(spell);
-
 	}
 	char result = CastSpellOuter(_this, a2, a3, a4);
-	/*FILE* f = fopen(__FUNCTION__, "a");
-	fprintf(f, "_this: %08X, a2: %s (%08X), a3: %08X %u %i, a4: %08X %u %i: result: %u, ret: %08X\n", _this, a2->name.m_data, a2, a3, a3, a3, a4, a4, a4, result, _ReturnAddress());
-	fclose(f);*/
 	return result;
 }
 
 void InitHooks() {
+	_MESSAGE("Initializing ConstructObjecet and CompileObject hooks...");
 	InitTrampHook(ConstructObject, 8);
 	InitTrampHook(CompileFiles, 8);
-	if (1 || oRandCreatures > 1) {
-		//this hook's existence causes crashes on reloading as it appears to prevent existing reference forms
+	if (oRandCreatures > 1) {
+		_MESSAGE("oRandCreatures: %i, initializing LoadForm and LoadObject hooks...\nWARNING: This setting is highly unstable", oRandCreatures);
+		//this hook's existence causes crashes on reloading as it appears to prevent the existing player or other reference forms
 		//from being removed from the memory. a possible threading issue, as the pseudocode prints out the warning below
 		// based on certain values from GetCurrentThreadId()
 		//"2024/02/24 04:05:08  [0045C7CC] [WARNING]   DeleteForm() was called, but the game is not being loaded."
 		InitTrampHook(LoadForm, 7);
-		//InitTrampHook(LoadObject, 11);
+		InitTrampHook(LoadObject, 11);
+		//i dont think delving into it is worth it though, oRandCreatures being set to 2 is not a recommended setting
 	}
 	if (oAddItems || oDeathItems) {
+		_MESSAGE("oAddItems: %i, oDeathItems: %i, initializing the AddItem hook...", oAddItems, oDeathItems);
 		InitTrampHook(AddItem, 6);
 	}
 	if (oAddItems || oDeathItems || oRandCreatures) {
+		_MESSAGE("oAddItems: %i, oDeathItems: %i, oRandCreatures: %i, initializing the CalcLevListOuter hook...", oAddItems, oDeathItems, oRandCreatures);
 		InitTrampHook(CalcLevListOuter, 7);
 	}
-	//InitTrampHook(AddSpell, 7);
-	//InitTrampHook(AddSpellOuter, 7);
-	//InitTrampHook(CastSpell, 7);
-	//InitTrampHook(CastSpellOuter, 7);
+	if (oRandSpells) {
+		_MESSAGE("oRandSpells: %i, initializing the AddSpellOuter and CastSpellOuter hooks...", oRandSpells);
+		InitTrampHook(AddSpellOuter, 7);
+		InitTrampHook(CastSpellOuter, 7);
+	}
 }
 
 unsigned int getNumItems(ItemMapPtr map) {

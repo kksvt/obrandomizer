@@ -14,9 +14,9 @@ std::map<UInt32, std::vector<UInt32>> allSpellsBySchool;
 std::vector<UInt32> allCreatures;
 std::vector<UInt32> allItems;
 std::vector<UInt32> allSpells;
-std::set<UInt32> allAdded;
+std::unordered_set<UInt32> allAdded;
 
-std::set<UInt32> allRandomized;
+std::unordered_set<UInt32> allRandomized;
 
 std::list<TESObjectREFR*> toRandomize;
 std::map<TESObjectREFR*, UInt32> restoreFlags;
@@ -36,6 +36,7 @@ int oAddItems = 1;
 int oDeathItems = 1;
 int oWorldItems = 1;
 int oRandInventory = 1;
+int oRandSpells = 0;
 
 bool skipMod[0xFF] = { 0 };
 UInt8 randId = 0xFF;
@@ -128,6 +129,7 @@ void InitConfig() {
 		OBRN_CONFIGLINE(buf, oDeathItems);
 		OBRN_CONFIGLINE(buf, oWorldItems);
 		OBRN_CONFIGLINE(buf, oRandInventory);
+		OBRN_CONFIGLINE(buf, oRandSpells);
 		//set ZZZOBRNRandomQuest.oUseEssentialCreatures to 0
 		//set ZZZOBRNRandomQuest.oExcludeQuestItems to 1
 	}
@@ -173,7 +175,17 @@ void fillUpWpRanges() {
 TESForm* getRandomForKey(ItemMapPtr map, const UInt32 key) {
 	auto it = map->find(key);
 	if (it == map->end() || !it->second.size()) {
-		_ERROR("Couldn't find key %u for map %s\n", key, (map == &allWeapons ? "weapons" : (map == &allClothingAndArmor ? "clothing & armor" : "generic")));
+		const char* mapName = "generic";
+		if (map == &allWeapons) {
+			mapName = "weapons";
+		}
+		else if (map == &allClothingAndArmor) {
+			mapName = "clothing & armor";
+		}
+		else if (map == &allSpellsBySchool) {
+			mapName = "spells by school";
+		}
+		_ERROR("Couldn't find key %u for map %s", key, mapName);
 		return NULL;
 	}
 	return LookupFormByID(it->second[rng(0, it->second.size() - 1)]);
@@ -192,7 +204,7 @@ void addOrAppend(ItemMapPtr map, const UInt32 key, UInt32 value) {
 	}
 }
 
-bool isQuestItem(TESForm* item) {
+bool isQuestOrScriptedItem(TESForm* item) {
 	if (item->IsQuestItem()) {
 		return true;
 	}
@@ -421,27 +433,54 @@ const char* formToString[] = {
 	TESFORM2STRING(kFormType_TOFT)
 };
 
-const char* FormToString(int form) {
+const char* formIDToString(int form) {
 	if (form >= 0 && form < sizeof(formToString) / sizeof(const char*)) {
 		return formToString[form];
 	}
 	return "Unknown";
 }
 
-bool getFormsFromLeveledList(TESLevItem* lev, std::map<UInt32, TESForm*>& forms) {
-	auto data = lev->leveledList.list.Info();
-	auto next = lev->leveledList.list.Next();
+bool getFormsFromLeveledList(TESLeveledList* list, std::map <TESForm*, int>& itemList, ItemRetrievalFlag flag) {
+	auto data = list->list.Info();
+	auto next = list->list.Next();
+	bool addQuestItems = (flag == ItemRetrievalFlag::all), 
+		rejectOnQuestItem = (flag == ItemRetrievalFlag::rejectOnQuestItem);
 	while (data != NULL) {
-		if (data->form->GetFormType() == kFormType_LeveledItem) {
-			if (!getFormsFromLeveledList(OBLIVION_CAST(data->form, TESForm, TESLevItem), forms)) {
-				return false;
+		switch (data->form->GetFormType()) {
+			case kFormType_LeveledItem:
+			{
+				TESLevItem* nested = OBLIVION_CAST(data->form, TESForm, TESLevItem);
+				if (!getFormsFromLeveledList(&nested->leveledList, itemList, flag) && rejectOnQuestItem) {
+					return false;
+				}
+				break;
 			}
-		}
-		else {
-			if (isQuestItem(data->form) && oExcludeQuestItems) {
-				return false;
+			case kFormType_LeveledSpell:
+			{
+				TESLevSpell* nested = OBLIVION_CAST(data->form, TESForm, TESLevSpell);
+				if (!getFormsFromLeveledList(&nested->leveledList, itemList, flag) && rejectOnQuestItem) {
+					return false;
+				}
+				break;
 			}
-			forms.insert(std::make_pair(data->form->GetFormType(), data->form));
+			default:
+			{
+				bool questItem = isQuestOrScriptedItem(data->form);
+				if (questItem && rejectOnQuestItem) {
+					return false;
+				}
+				if (!questItem || addQuestItems) {
+					auto it = itemList.find(data->form);
+					int count = std::max((UInt16)1, data->count);
+					if (it == itemList.end()) {
+						itemList.insert(std::make_pair(data->form, count));
+					}
+					else {
+						it->second += count;
+					}
+				}
+			}
+
 		}
 		if (next == NULL) {
 			break;
@@ -452,41 +491,13 @@ bool getFormsFromLeveledList(TESLevItem* lev, std::map<UInt32, TESForm*>& forms)
 	return true;
 }
 
-void getInventoryFromTESLevItem(TESLevItem* lev, std::map<TESForm*, int>& itemList, bool addQuestItems) {
-	auto data = lev->leveledList.list.Info();
-	auto next = lev->leveledList.list.Next();
-	while (data != NULL) {
-		if (data->form->GetFormType() == kFormType_LeveledItem) {
-			getInventoryFromTESLevItem(OBLIVION_CAST(data->form, TESForm, TESLevItem), itemList, addQuestItems);
-		}
-		else {
-			if (!isQuestItem(data->form) || addQuestItems) {
-				auto it = itemList.find(data->form);
-				int count = max(1, data->count);
-				if (it == itemList.end()) {
-					itemList.insert(std::make_pair(data->form, count));
-				}
-				else {
-					it->second += count;
-				}
-			}
-		}
-		if (next == NULL) {
-			break;
-		}
-		data = next->Info();
-		next = next->Next();
-	}
-}
-
-std::pair<TESForm*, int> getFormFromTESLevItem(TESLevItem* lev, bool addQuestItems) {
+std::pair<TESForm*, int> getRandomFormFromLeveledList(TESLeveledList* list, ItemRetrievalFlag flag) {
 	std::map<TESForm*, int> itemList;
-	getInventoryFromTESLevItem(lev, itemList, addQuestItems);
-	if (!itemList.size()) {
+	if (!getFormsFromLeveledList(list, itemList, flag) || !itemList.size()) {
 		return std::make_pair((TESForm*)NULL, (int)0);
 	}
 	int r = rng(0, itemList.size() - 1), i = -1;
-	for (auto it : itemList) {
+	for (const auto& it : itemList) {
 		if (++i == r) {
 #ifdef _DEBUG
 			_MESSAGE("%s: we are returning %s %08X from the leveled list", __FUNCTION__, GetFullName(it.first), it.second);
@@ -497,28 +508,41 @@ std::pair<TESForm*, int> getFormFromTESLevItem(TESLevItem* lev, bool addQuestIte
 	return std::make_pair((TESForm*)NULL, (int)0);
 }
 
-bool getInventoryFromTESContainer(TESContainer* container, std::map<TESForm*, int>& itemList, bool addQuestItems) {
-	bool hasFlag = false;
+bool getInventoryFromTESContainer(TESContainer* container, std::map<TESForm*, int>& itemList, ItemRetrievalFlag flag) {
+	bool hasFlag = false, addQuestItems = (flag == ItemRetrievalFlag::all);
 	auto data = container->list.Info();
 	auto next = container->list.Next();
 	while (data != NULL) {
 		if (data->type != NULL) {
-			if (data->type->GetFormType() == kFormType_LeveledItem) {
-				auto it = getFormFromTESLevItem(OBLIVION_CAST(data->type, TESForm, TESLevItem), addQuestItems);
+			switch (data->type->GetFormType()) {
+			case kFormType_LeveledItem:
+			{
+				TESLevItem* lev = OBLIVION_CAST(data->type, TESForm, TESLevItem);
+				auto it = getRandomFormFromLeveledList(&lev->leveledList, flag);
 				if (it.first != NULL) {
 					itemList.insert(it);
 				}
+				break;
 			}
-			else {
+			case kFormType_LeveledSpell:
+			{
+				TESLevSpell* lev = OBLIVION_CAST(data->type, TESForm, TESLevSpell);
+				auto it = getRandomFormFromLeveledList(&lev->leveledList, flag);
+				if (it.first != NULL) {
+					itemList.insert(it);
+				}
+				break;
+			}
+			default:
 				if (data->type == obrnFlag) {
 #ifdef _DEBUG
 					_MESSAGE("%s: OBRN Flag has been found for", __FUNCTION__);
 #endif
 					hasFlag = true;
 				}
-				else if (!isQuestItem(data->type) || addQuestItems) {
+				else if (!isQuestOrScriptedItem(data->type) || addQuestItems) {
 					auto it = itemList.find(data->type);
-					int count = max(1, data->count);
+					int count = std::max((SInt32)1, data->count);
 					if (it == itemList.end()) {
 						itemList.insert(std::make_pair(data->type, count));
 					}
@@ -526,6 +550,7 @@ bool getInventoryFromTESContainer(TESContainer* container, std::map<TESForm*, in
 						it->second += count;
 					}
 				}
+				break;
 			}
 		}
 		if (next == NULL) {
@@ -537,13 +562,13 @@ bool getInventoryFromTESContainer(TESContainer* container, std::map<TESForm*, in
 	return hasFlag;
 }
 
-bool getContainerInventory(TESObjectREFR* ref, std::map<TESForm*, int> & itemList, bool addQuestItems) {
-	bool hasFlag = false;
+bool getContainerInventory(TESObjectREFR* ref, std::map<TESForm*, int> & itemList, ItemRetrievalFlag flag) {
+	bool hasFlag = false, addQuestItems = (flag == ItemRetrievalFlag::all);
 	ExtraContainerChanges* cont = (ExtraContainerChanges*)ref->baseExtraList.GetByType(kExtraData_ContainerChanges);
 	while (cont != NULL && cont->data != NULL && cont->data->objList != NULL) {
 		for (auto it = cont->data->objList->Begin(); !it.End(); ++it) {
 			TESForm* item = it->type;
-			UInt32 count = max(1, it->countDelta); //certain items, for whatever reasons, have count 0
+			UInt32 count = std::max((SInt32)1, it->countDelta);
 			if (item == obrnFlag) {
 				hasFlag = true;
 #ifdef _DEBUG
@@ -553,8 +578,7 @@ bool getContainerInventory(TESObjectREFR* ref, std::map<TESForm*, int> & itemLis
 			}
 			//_MESSAGE("Ref: %s (%08X) (base: %s %08X) : found a %s (%08X %s), quantity: %i",
 			//	GetFullName(ref), ref->refID, GetFullName(ref->baseForm), ref->baseForm->refID, GetFullName(item), item->refID, FormToString(item->GetFormType()), count);
-			TESScriptableForm* scriptForm = OBLIVION_CAST(item, TESForm, TESScriptableForm);
-			if (GetFullName(item)[0] != '<' && (addQuestItems || (!item->IsQuestItem() && (!oExcludeQuestItems || scriptForm == NULL || scriptForm->script == NULL)))) {
+			if (GetFullName(item)[0] != '<' && (addQuestItems || !isQuestOrScriptedItem(item))) {
 				auto it = itemList.find(item);
 				if (it == itemList.end()) {
 					itemList.insert(std::make_pair(item, count));
@@ -579,7 +603,7 @@ bool getContainerInventory(TESObjectREFR* ref, std::map<TESForm*, int> & itemLis
 		if (actorBase == NULL) {
 			return false;
 		}
-		return getInventoryFromTESContainer(&actorBase->container, itemList, addQuestItems);
+		return getInventoryFromTESContainer(&actorBase->container, itemList, flag);
 	}
 	return hasFlag;
 }
@@ -598,7 +622,7 @@ int getRefLevelAdjusted(TESObjectREFR* ref) {
 	}
 	Actor* actor = OBLIVION_CAST(ref, TESObjectREFR, Actor);
 	TESActorBase* actorBase = OBLIVION_CAST(actor->baseForm, TESForm, TESActorBase);
-	return min(1, actorBase->actorBaseData.IsPCLevelOffset() ? getPlayerLevel() + actorBase->actorBaseData.level : actorBase->actorBaseData.level);
+	return std::min(1, actorBase->actorBaseData.IsPCLevelOffset() ? getPlayerLevel() + actorBase->actorBaseData.level : actorBase->actorBaseData.level);
 }
 
 void randomizeInventory(TESObjectREFR* ref) {
@@ -606,7 +630,7 @@ void randomizeInventory(TESObjectREFR* ref) {
 		return;
 	}
 	std::map<TESForm*, int> removeItems;
-	bool hasFlag = getContainerInventory(ref, removeItems, !oExcludeQuestItems);
+	bool hasFlag = getContainerInventory(ref, removeItems, oExcludeQuestItems ? ItemRetrievalFlag::noQuestItems : ItemRetrievalFlag::all);
 	if (ref->GetFormType() == kFormType_ACRE) {
 		if (obrnFlag == NULL || hasFlag) {
 			return;
@@ -644,7 +668,7 @@ void randomizeInventory(TESObjectREFR* ref) {
 		}
 		if (item->refID != ITEM_GOLD && item->GetFormType() != kFormType_Book && item->GetFormType() != kFormType_Key &&
 			/*(item->GetModIndex() != 0xFF && !skipMod[item->GetModIndex()])*/ item->GetModIndex() != 0xFF && item->GetModIndex() != randId && //i honestly do not remember why i put the original check here
-			(!oExcludeQuestItems || !isQuestItem(item))) {
+			(!oExcludeQuestItems || !isQuestOrScriptedItem(item))) {
 			ref->RemoveItem(item, NULL, cnt, 0, 0, NULL, NULL, NULL, 0, 0);
 		}
 	}
@@ -655,7 +679,7 @@ void randomizeInventory(TESObjectREFR* ref) {
 	//granting random items
 	TESForm* selection = NULL;
 	if (ref->GetFormType() == kFormType_ACHR) {
-		int roll = rand() % 100, level = getRefLevelAdjusted(ref);
+		int roll = rng(0, 99), level = getRefLevelAdjusted(ref);
 		//Gold
 		if (roll < 50) {
 #ifdef _DEBUG
@@ -1158,40 +1182,37 @@ void randomizeInventory(TESObjectREFR* ref) {
 	}
 }
 
-TESForm* getFormFromLeveledList(TESLevItem* lev) {
-	if (lev == NULL) {
-		return NULL;
-	}
-	std::map<UInt32, TESForm*> forms;
-	if (!getFormsFromLeveledList(lev, forms) || !forms.size()) {
-		return NULL;
-	}
-	int i = -1, cnt = rng(0, forms.size() - 1);
-	auto it = forms.begin();
-	while (it != forms.end()) {
-		if (++i == cnt) {
-			return it->second;
-		}
-		++it;
-	}
-	return NULL;
-}
-
 TESForm* getRandom(TESForm* f) {
-	if (!allItems.size()) {
-		return NULL;
-	}
+	std::vector<UInt32>* ptr = NULL;
 	if (f == NULL) {
 		return NULL;
 	}
-	if (oExcludeQuestItems && isQuestItem(f)) {
+	if (oExcludeQuestItems && isQuestOrScriptedItem(f)) {
 		return NULL;
 	}
 	if (f->GetModIndex() != 0xFF && f->GetModIndex() == randId) {
 		//if (f->GetModIndex() != 0xFF && skipMod[f->GetModIndex()]) { //very important!
 		return NULL;
 	}
-	return LookupFormByID(allItems[rng(0, allItems.size() - 1)]);
+	switch (f->GetFormType()) {
+	case kFormType_LeveledSpell:
+	case kFormType_Spell:
+		if (!allSpells.size()) {
+			return NULL;
+		}
+		ptr = &allSpells;
+		break;
+	default:
+		if (!allItems.size()) {
+			return NULL;
+		}
+		ptr = &allItems;
+		break;
+	}
+	if (ptr != NULL) {
+		return LookupFormByID((*ptr)[rng(0, ptr->size() - 1)]);
+	}
+	return NULL;
 }
 
 TESForm* getRandomByType(TESForm *f) {
@@ -1200,7 +1221,7 @@ TESForm* getRandomByType(TESForm *f) {
 	if (f == NULL) {
 		return NULL;
 	}
-	if (oExcludeQuestItems && isQuestItem(f)) {
+	if (oExcludeQuestItems && isQuestOrScriptedItem(f)) {
 		return NULL;
 	}
 	if (f->GetModIndex() != 0xFF && f->GetModIndex() == randId) {
@@ -1208,57 +1229,69 @@ TESForm* getRandomByType(TESForm *f) {
 		return NULL;
 	}
 	switch (f->GetFormType()) {
-	case kFormType_LeveledItem:
-	{
-		TESLevItem* lev = OBLIVION_CAST(f, TESForm, TESLevItem);
-		return getRandomByType(getFormFromLeveledList(lev));
-	}
-	case kFormType_Armor:
-	case kFormType_Clothing:
-	{
-		ptr = &allClothingAndArmor;
-		if (f->GetFormType() == kFormType_Armor) {
-			TESObjectARMO* armor = OBLIVION_CAST(f, TESForm, TESObjectARMO);
-			key = armor->bipedModel.partMask & ~kSlot_Tail; //yeah... we kinda dont care about this slot
+		case kFormType_LeveledItem:
+		{
+			TESLevItem* lev = OBLIVION_CAST(f, TESForm, TESLevItem);
+			return getRandomByType(getRandomFormFromLeveledList(&lev->leveledList, ItemRetrievalFlag::rejectOnQuestItem).first);
 		}
-		else {
-			TESObjectCLOT* clothing = OBLIVION_CAST(f, TESForm, TESObjectCLOT);
-			key = clothing->bipedModel.partMask;
+		case kFormType_LeveledSpell:
+		{
+			TESLevSpell* lev = OBLIVION_CAST(f, TESForm, TESLevSpell);
+			return getRandomByType(getRandomFormFromLeveledList(&lev->leveledList, ItemRetrievalFlag::rejectOnQuestItem).first);
 		}
-		if (key & kSlot_RightRing) {
-			key = kSlot_LeftRing;
+		case kFormType_Armor:
+		case kFormType_Clothing:
+		{
+			ptr = &allClothingAndArmor;
+			if (f->GetFormType() == kFormType_Armor) {
+				TESObjectARMO* armor = OBLIVION_CAST(f, TESForm, TESObjectARMO);
+				key = armor->bipedModel.partMask & ~kSlot_Tail; //yeah... we kinda dont care about this slot
+			}
+			else {
+				TESObjectCLOT* clothing = OBLIVION_CAST(f, TESForm, TESObjectCLOT);
+				key = clothing->bipedModel.partMask;
+			}
+			if (key & kSlot_RightRing) {
+				key = kSlot_LeftRing;
+			}
+			if (key & kSlot_Hair || key & kSlot_Head) {
+				key = kSlot_Head;
+			}
+			break;
 		}
-		if (key & kSlot_Hair || key & kSlot_Head) {
-			key = kSlot_Head;
+		case kFormType_Weapon:
+		{
+			ptr = &allWeapons;
+			TESObjectWEAP* weapon = OBLIVION_CAST(f, TESForm, TESObjectWEAP);
+			key = weapon->type;
+			if (key == TESObjectWEAP::kType_BladeTwoHand) {
+				key = TESObjectWEAP::kType_BladeOneHand;
+			}
+			else if (key == TESObjectWEAP::kType_BluntTwoHand) {
+				key = TESObjectWEAP::kType_BluntOneHand;
+			}
+			break;
 		}
-		break;
-	}
-	case kFormType_Weapon:
-	{
-		ptr = &allWeapons;
-		TESObjectWEAP* weapon = OBLIVION_CAST(f, TESForm, TESObjectWEAP);
-		key = weapon->type;
-		if (key == TESObjectWEAP::kType_BladeTwoHand) {
-			key = TESObjectWEAP::kType_BladeOneHand;
+		case kFormType_Apparatus:
+		case kFormType_Book:
+		case kFormType_Ingredient:
+		case kFormType_Misc:
+		case kFormType_Ammo:
+		case kFormType_SoulGem:
+		case kFormType_Key:
+		case kFormType_AlchemyItem:
+		case kFormType_SigilStone:
+			ptr = &allGenericItems;
+			key = f->GetFormType();
+			break;
+		case kFormType_Spell:
+		{
+			SpellItem* spell = OBLIVION_CAST(f, TESForm, SpellItem);
+			ptr = &allSpellsBySchool;
+			key = spell->GetSchool();
 		}
-		else if (key == TESObjectWEAP::kType_BluntTwoHand) {
-			key = TESObjectWEAP::kType_BluntOneHand;
-		}
-		break;
-	}
-	case kFormType_Apparatus:
-	case kFormType_Book:
-	case kFormType_Ingredient:
-	case kFormType_Misc:
-	case kFormType_Ammo:
-	case kFormType_SoulGem:
-	case kFormType_Key:
-	case kFormType_AlchemyItem:
-	case kFormType_SigilStone:
-		ptr = &allGenericItems;
-		key = f->GetFormType();
-	default:
-		break;
+		default:
+			break;
 	}
 	if (ptr != NULL && key != 0xFFFFFFFF) {
 		return getRandomForKey(ptr, key);
@@ -1377,7 +1410,7 @@ void debugDumpSpells(TESForm* form) {
 			auto next = actor_base->spellList.leveledSpellList.Next();
 			while (data != NULL) {
 				UInt32 refID = (UInt32)data;
-				fprintf(f, "\tLeveled Spell: %s (%08X) %s\n", GetFullName(data), data->refID, FormToString(data->GetFormType()));
+				fprintf(f, "\tLeveled Spell: %s (%08X) %s\n", GetFullName(data), data->refID, formIDToString(data->GetFormType()));
 				if (next == NULL) {
 					break;
 				}
