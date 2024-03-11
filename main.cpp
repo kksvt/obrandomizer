@@ -1,4 +1,5 @@
 #include "randomizer.h"
+#include "obse_common/SafeWrite.h"
 
 IDebugLog		gLog("obrandomizer.log");
 
@@ -10,11 +11,10 @@ OBSEScriptInterface			* g_scriptIntfc = NULL;
 
 bool files_read = false;
 bool checked_mods = false;
-bool loading_game = false;
 
 #define OBRN_VERSION_MAJOR 1
 #define OBRN_VERSION_MINOR 0
-#define OBRN_VERSION_REVISION 1
+#define OBRN_VERSION_REVISION 2
 
 #define CompileFiles_Addr 0x0044F3D0
 typedef int(__thiscall* CompileFiles_t)(DWORD*, char, char);
@@ -22,37 +22,35 @@ CompileFiles_t CompileFiles = NULL;
 
 int __fastcall CompileFiles_Hook(DWORD* _this, void* _edx, char a2, char a3) {
 	if (!checked_mods) {
-		srand(time(NULL));
 		InitModExcludes();
-		InitConfig();
 		checked_mods = true;
 	}
 	int result = CompileFiles(_this, a2, a3);
 	if (result) {
 		fillUpWpRanges();
 		fillUpClothingRanges();
+		for (auto it : allAdded) {
+			TESForm* form = LookupFormByID(it);
+			if (form == NULL || form->GetFormType() == kFormType_Creature || form->GetFormType() == kFormType_Spell) {
+				continue;
+			}
+			allItems.push_back(it);
+		}
 		files_read = true;
 		for (auto it : toRandomize) {
 			randomize(it, __FUNCTION__);
 		}
 		toRandomize.clear();
-		for (auto it : allAdded) {
-			TESForm* form = LookupFormByID(it);
-			if (form == NULL || form->GetFormType() == kFormType_Creature) {
-				continue;
-			}
-			allItems.push_back(it);
-		}
 		if (obrnFlag == NULL) {
 			_ERROR("Couldn't find OBRN Flag in the loaded files. Some features will not work properly.");
 		}
 		allAdded.clear();
 #ifdef _DEBUG
-		UInt32 numArmorClothing = 0, numWeapons = 0, numGenericItems = 0, numCreatures = allCreatures.size();
+		UInt32 numArmorClothing = 0, numWeapons = 0, numGenericItems = 0, numCreatures = allCreatures.size(), numSpells = 0;
 		const char* name = NULL;
 		_MESSAGE("At the end of the list generation, we have:");
-		for (auto it = allClothingAndArmor.begin(); it != allClothingAndArmor.end(); ++it) {
-			switch (it->first) {
+		for (const auto &it : allClothingAndArmor) {
+			switch (it.first) {
 			case kSlot_Head:
 				name = "Helmets";
 				break;
@@ -108,14 +106,14 @@ int __fastcall CompileFiles_Hook(DWORD* _this, void* _edx, char a2, char a3) {
 				name = "Unknown";
 				break;
 			}
-			_MESSAGE("(CLOTHING) %s (%i): %i", name, it->first, it->second.size());
-			for (auto cloth = it->second.begin(); cloth != it->second.end(); ++cloth) {
-				_MESSAGE("\t%s", GetFullName(LookupFormByID(*cloth)));
+			_MESSAGE("(CLOTHING) %s (%i): %i", name, it.first, it.second.size());
+			for (auto cloth : it.second) {
+				_MESSAGE("\t%s", GetFullName(LookupFormByID(cloth)));
 			}
-			numArmorClothing += it->second.size();
+			numArmorClothing += it.second.size();
 		}
-		for (auto it = allWeapons.begin(); it != allWeapons.end(); ++it) {
-			switch (it->first) {
+		for (const auto &it : allWeapons) {
+			switch (it.first) {
 			case TESObjectWEAP::kType_BladeOneHand:
 				name = "Blade";
 				break;
@@ -132,28 +130,59 @@ int __fastcall CompileFiles_Hook(DWORD* _this, void* _edx, char a2, char a3) {
 				name = "Unknown Weapon";
 				break;
 			}
-			_MESSAGE("(WEAPON) %s: %i", name, it->second.size());
-			for (auto wp = it->second.begin(); wp != it->second.end(); ++wp) {
-				_MESSAGE("\t%s", GetFullName(LookupFormByID(*wp)));
+			_MESSAGE("(WEAPON) %s: %i", name, it.second.size());
+			for (auto wp : it.second) {
+				_MESSAGE("\t%s", GetFullName(LookupFormByID(wp)));
 			}
-			numWeapons += it->second.size();
+			numWeapons += it.second.size();
 		}
-		for (auto it = allGenericItems.begin(); it != allGenericItems.end(); ++it) {
-			name = FormToString(it->first);
-			_MESSAGE("(GENERIC): %s: %i", name, it->second.size());
-			for (auto g = it->second.begin(); g != it->second.end(); ++g) {
-				_MESSAGE("\t%s", GetFullName(LookupFormByID(*g)));
+		for (const auto &it : allGenericItems) {
+			name = formTypeToString(it.first);
+			_MESSAGE("(GENERIC): %s: %i", name, it.second.size());
+			for (auto g : it.second) {
+				_MESSAGE("\t%s", GetFullName(LookupFormByID(g)));
 			}
-			numGenericItems += it->second.size();
+			numGenericItems += it.second.size();
+		}
+		for (const auto &it : allSpellsBySchool) {
+			switch (it.first) {
+			case EffectSetting::kEffect_Alteration:
+				name = "Alteration";
+				break;
+			case EffectSetting::kEffect_Conjuration:
+				name = "Conjuration";
+				break;
+			case EffectSetting::kEffect_Destruction:
+				name = "Destruction";
+				break;
+			case EffectSetting::kEffect_Illusion:
+				name = "Illusion";
+				break;
+			case EffectSetting::kEffect_Mysticism:
+				name = "Mysticism";
+				break;
+			case EffectSetting::kEffect_Restoration:
+				name = "Restoration";
+				break;
+			default:
+				name = "Unknown";
+				break;
+			}
+			_MESSAGE("(SPELL): %s: %i", name, it.second.size());
+			for (auto spell : it.second) {
+				_MESSAGE("\t%s", GetFullName(LookupFormByID(spell)));
+			}
+			numSpells += it.second.size();
 		}
 		_MESSAGE("(CREATURE): %i", numCreatures);
-		for (auto it = allCreatures.begin(); it != allCreatures.end(); ++it) {
-			_MESSAGE("\t%s", GetFullName(LookupFormByID(*it)));
+		for (auto it : allCreatures) {
+			_MESSAGE("\t%s", GetFullName(LookupFormByID(it)));
 		}
 		if (oRandInventory) {
 			_MESSAGE("There are %u total items", allItems.size());
 		}
-		_MESSAGE("There are %u weapons, %u generic items, %u pieces of clothing / armor and %u creatures in the lists", numWeapons, numGenericItems, numArmorClothing, numCreatures);
+		_MESSAGE("There are %u weapons, %u generic items, %u pieces of clothing / armor, %u creatures and %u spells in the lists", 
+			numWeapons, numGenericItems, numArmorClothing, numCreatures, numSpells);
 #endif
 	}
 	return result;
@@ -184,8 +213,8 @@ int __fastcall ConstructObject_Hook(unsigned char* _this, void* _edx, int a2, ch
 				}
 			}
 		}
-		else if (!files_read) {
-			if (retAddress == (void*)0x0044F221) { //called by a function that loads forms from an esp/esm
+		else {
+			if (!files_read && retAddress == (void*)0x0044F221) { //called by a function that loads forms from an esp/esm
 				tryToAddForm(form);
 			}
 		}
@@ -193,42 +222,14 @@ int __fastcall ConstructObject_Hook(unsigned char* _this, void* _edx, int a2, ch
 	return result;
 }
 
-/*
-#define CalcLevList_Addr 0x0046CC70
-typedef int(__thiscall* CalcLevList_t)(BYTE*, int, DWORD*, WORD*, DWORD*);
-CalcLevList_t CalcLevList = NULL;
-
-int __fastcall CalcLevList_Hook(BYTE* _this, void* _edx, int a2, DWORD* a3, WORD* a4, DWORD* a5) {
-	int result = CalcLevList(_this, a2, a3, a4, a5);
-	if (oRandCreatures && result) {
-		TESForm* form = *(TESForm**)a3;
-		if (form != NULL) {
-			if (form->GetFormType() == kFormType_Creature && allCreatures.size()) {
-				TESForm** a3_real = (TESForm**)a3;
-				TESForm* rando = LookupFormByID(allCreatures[rand() % allCreatures.size()]);
-#ifdef _DEBUG
-				FILE* f = fopen("randomization.log", "a");
-				fprintf(f, "%s: Going to randomize %s %08X into %s %08X\n", __FUNCTION__, GetFullName(*a3_real), (*a3_real)->refID, GetFullName(rando), rando->refID);
-				fclose(f);
-#endif
-				*a3_real = rando;
-			}
-		}
-	}
-	return result;
-}
-*/
-
 #define AddItem_Addr 0x00469D10
 typedef int(__thiscall* AddItem_t)(int, TESForm*, int, char);
 AddItem_t AddItem = NULL;
 
 int __fastcall AddItem_Hook(int _this, void* _edx, TESForm* a2, int a3, char a4) {
-	UInt32 refID;
 	void* retAddress = _ReturnAddress();
-	if (oAddItems && !IsConsoleOpen() && retAddress == (void*)0x00507419 /*called within a script*/ 
-		&& getRandomBySetting(a2, refID, oAddItems)) {
-		if (TESForm * replacement = LookupFormByID(refID)) {
+	if (oAddItems && !IsConsoleOpen() && retAddress == (void*)0x00507419 /*called within a script*/) {
+		if (TESForm * replacement = getRandomBySetting(a2, oAddItems)) {
 			a2 = replacement;
 		}
 	}
@@ -236,10 +237,46 @@ int __fastcall AddItem_Hook(int _this, void* _edx, TESForm* a2, int a3, char a4)
 }
 
 #define LoadForm_Addr 0x004603E0
-typedef TESForm* (__stdcall* LoadForm_t)(int, UInt32*);
+typedef TESForm* (__stdcall* LoadForm_t)(UInt32, UInt32*);
 LoadForm_t LoadForm = NULL;
 
-TESForm* __stdcall LoadForm_Hook(int a1, UInt32* a2) {
+
+TESForm* __stdcall LoadForm_Hook(UInt32 a1, UInt32* a2) {
+#ifdef _DEBUG_LOADFORM
+	static int calls = 0;
+	FILE* f = fopen(__FUNCTION__"_calls.txt", "a");
+	TESForm* fa1 = LookupFormByID(a1);
+	TESForm* fa2 = LookupFormByID(a2[1]);
+	const char* a1_name = GetFullName(fa1);
+	const char* a2_name = GetFullName(fa2);
+	const char* a1_form = "invalid", * a2_form = "invalid";
+	if (fa1 != NULL && fa2 != NULL) {
+		a1_form = formIDToString(fa1->GetFormType());
+		TESForm* v3 = fa1, * v4 = fa2;
+		TESBoundObject* v2 = OBLIVION_CAST(v4, TESForm, TESBoundObject);
+		TESObjectREFR* v6 = OBLIVION_CAST(v3, TESForm, TESObjectREFR);
+		TESBoundObject* bound = (*(TESBoundObject*(__thiscall**)(TESObjectREFR*))(*(DWORD*)v6 + 368))(v6);
+		fprintf(f, "v2 = %08X %s %08X %s, bound = %08X %s %08X %s, the player: %08X %08X, v4: %08X, v3: %08X\n", 
+			v2, GetFullName(v2), v2->refID, formIDToString(v2->GetFormType()),
+			bound, GetFullName(bound), bound->refID, formIDToString(bound->GetFormType()), 
+			*g_thePlayer, (*g_thePlayer)->refID, v4, v3);
+		//this crashes if we attempt to load the player's character
+		//the bound object has a proper full name, but the refID is 0. why is it not initialized properly?
+		//returning here prevents crash on the second game load, but then the loadform
+		//appears to have duplicate calls for the same object and causes crash on subsequent reloads
+		fclose(f);
+		//return v3;
+	}
+	if (fa2 != NULL) {
+		a2_form = formIDToString(fa2->GetFormType());
+	}
+	//fprintf(f, "%d: a1: %08X, a2: %08X, a2[0]: %08X, a2[1]: %08X, a1 form: %s (%s), a2[1] form: %s (%s)\n", ++calls, a1, a2, a2[0], a2[1], 
+	//	a1_name, a1_form, a2_name, a2_form);
+	fclose(f);
+	/*if (fa1 != NULL) {
+		FormHeap_Free(fa1);
+	}*/
+#endif
 	TESForm* result = LoadForm(a1, a2);
 	if (oRandCreatures > 1 && result != NULL) {
 		if (result->GetFormType() == kFormType_ACRE && (a1 >> 24) == 0xFF) {
@@ -291,13 +328,12 @@ void __fastcall CalcLevListOuter_Hook(TESLeveledList* _this, void* _edx, int a2,
 		while (result != NULL) {
 			if (result->data != NULL) {
 				if (deathItem || scriptAddItem) {
-					UInt32 refID;
-					if (getRandomBySetting(result->data->item, refID, deathItem ? oDeathItems : oAddItems)) {
-						result->data->item = LookupFormByID(refID);
+					if (TESForm* ref = getRandomBySetting(result->data->item, deathItem ? oDeathItems : oAddItems)) {
+						result->data->item = ref;
 					}
 				}
 				else if (result->data->item->GetFormType() == kFormType_Creature) {
-					TESForm* rando = LookupFormByID(allCreatures[rand() % allCreatures.size()]), * old = result->data->item;
+					TESForm* rando = LookupFormByID(allCreatures[rng(0, allCreatures.size() - 1)]), * old = result->data->item;
 #ifdef _DEBUG
 					_MESSAGE("%s: Going to randomize %s %08X into %s %08X", __FUNCTION__, GetFullName(old), old->refID, GetFullName(rando), rando->refID);
 #endif
@@ -309,43 +345,116 @@ void __fastcall CalcLevListOuter_Hook(TESLeveledList* _this, void* _edx, int a2,
 	}
 }
 
-//465D57 is the last addr where its still good
-#define LoadGame_Addr 0x00465860
-typedef char(__thiscall* LoadGame_t)(int, int, int, char);
-LoadGame_t LoadGame = NULL;
+//char __thiscall sub_6646D0(_DWORD** this, int a2)
+#define AddSpellOuter_Addr 0x006646D0
+typedef char(__thiscall* AddSpellOuter_t)(Actor*, SpellItem*);
+AddSpellOuter_t AddSpellOuter = NULL;
 
-char __fastcall LoadGame_Hook(int _this, void* _edx, int a2, int a3, char a4) {
-	//long story short, certain creatures (possibly only the ones with starting health being 0 that didn't have any items taken off them)
-	//have their inventory reset somewhere between 0x00465D57 and the end of the LoadGame function if the game was restarted
-	//it would be possible to track down the exact spot where it gets reset but
-	//a) this hacky solution seems to work
-	//b) i was meant to release this mod 3 months ago
-	//c) it would take time
-	loading_game = true;
-	char result = LoadGame(_this, a2, a3, a4);
-	loading_game = false;
-	for (auto it : toRandomize) {
-		randomize(it, __FUNCTION__);
+char __fastcall AddSpellOuter_Hook(Actor* _this, void* _edx, SpellItem* spell) {
+	static char randMsg[256] = "\0";
+	if ((void*)_this == (void*)(*g_thePlayer) && !IsConsoleOpen()) {
+		TESForm* rando = getRandomBySetting(OBLIVION_CAST(spell, SpellItem, TESForm), oRandSpells);
+		if (rando != NULL) {
+#ifdef _DEBUG
+			_MESSAGE("%s: Spell %s will now become %s, ret: %08X", __FUNCTION__, GetFullName(spell), GetFullName(rando), _ReturnAddress());
+#endif
+			sprintf_s(randMsg, sizeof(randMsg), "Spell %s has been randomized into %s", GetFullName(spell), GetFullName(rando));
+			spell = OBLIVION_CAST(rando, TESForm, SpellItem);
+			QueueUIMessage_2(randMsg, 2.0f, NULL, NULL); 
+			//this is necessary (or well, welcome) since randomizing the spell within this function will still print out
+			//the old spell name. to circumvent that, we'd either have to hook LookupFormByID and keep a spell mapping there 
+			//or hook the function that parses the "AddSpell" script command itself (possibly 0x00514950?) 
+		}
 	}
-	toRandomize.clear();
+	char result = AddSpellOuter(_this, spell);
 	return result;
 }
 
+//char __thiscall sub_699190(_DWORD *this, _DWORD *a2, int a3, int a4)
+#define CastSpellOuter_Addr 0x00699190
+typedef char(__thiscall* CastSpellOuter_t)(DWORD*, MagicItem*, int, int);
+CastSpellOuter_t CastSpellOuter = NULL;
+
+std::unordered_map<SpellItem*, MagicItem*> spellMapping;
+
+char __fastcall CastSpellOuter_Hook(DWORD* _this, void* _edx, MagicItem* a2, int a3, int a4) {
+	//_this - 23 = caster
+	TESForm* caster = (TESForm*)(DWORD*)(_this - 23);
+	SpellItem* spell = OBLIVION_CAST(a2, MagicItem, SpellItem);
+	if ((void*)(*g_thePlayer) != (void*)caster && spell != NULL && allSpells.size()) {
+		if (!spellMapping.contains(spell)) {
+			TESForm *rando = getRandomBySetting(OBLIVION_CAST(a2, MagicItem, TESForm), oRandSpells);
+			if (rando != NULL) {
+				spellMapping.insert(std::make_pair(spell, OBLIVION_CAST(rando, TESForm, MagicItem)));
+#ifdef _DEBUG
+			_MESSAGE("%s: Spell %s will now become %s. Caster is %s %08X (%s %08X)", __FUNCTION__, 
+				GetFullName(spell), GetFullName(OBLIVION_CAST(spellMapping.at(spell), MagicItem, TESForm)), 
+				GetFullName(caster), caster->refID, formTypeToString(caster->GetFormType()), caster);
+#endif
+			}
+		}
+		auto it = spellMapping.find(spell);
+		if (it != spellMapping.end()) {
+			a2 = it->second;
+		}
+	}
+	char result = CastSpellOuter(_this, a2, a3, a4);
+	return result;
+}
+
+//im not sure what this function does, but it appears to have something to
+//do with loading textures. it sometimes causes a crash on loading a save.
+//i shouldnt be doing this, but installing this hook at least allows you
+//to load the saved game
+/*bool __thiscall sub_4AC730(_BYTE* this, unsigned __int8 a2)
+{
+	return (a2 & this[24]) != 0;
+}*/
+
+#define CrashFix_Addr 0x004AC730
+typedef bool(__thiscall* CrashFix_t)(BYTE*, UInt8 a2);
+CrashFix_t CrashFix = NULL;
+
+bool __fastcall CrashFix_Hook(BYTE* _this, void* _edx, UInt8 a2) {
+	return 0;
+}
+
 void InitHooks() {
+	_MESSAGE("Initializing ConstructObject and CompileFiles hooks...");
 	InitTrampHook(ConstructObject, 8);
 	InitTrampHook(CompileFiles, 8);
-	//InitTrampHook(CalcLevList, 5);
-	InitTrampHook(LoadForm, 7);
-	InitTrampHook(AddItem, 6);
-	InitTrampHook(LoadObject, 11);
-	InitTrampHook(CalcLevListOuter, 7);
-	InitTrampHook(LoadGame, 7);
+	if (oRandCreatures > 1) {
+		_MESSAGE("oRandCreatures: %i, initializing LoadForm and LoadObject hooks...\nWARNING: This setting is highly unstable", oRandCreatures);
+		//this hook's existence causes crashes on reloading as it appears to prevent the existing player or other reference forms
+		//from being removed from the memory. a possible threading issue, as the pseudocode prints out the warning below
+		// based on certain values from GetCurrentThreadId()
+		//"2024/02/24 04:05:08  [0045C7CC] [WARNING]   DeleteForm() was called, but the game is not being loaded."
+		InitTrampHook(LoadForm, 7);
+		InitTrampHook(LoadObject, 11);
+		//i dont think delving into it is worth it though, oRandCreatures being set to 2 is not a recommended setting
+	}
+	if (oAddItems || oDeathItems) {
+		_MESSAGE("oAddItems: %i, oDeathItems: %i, initializing the AddItem hook...", oAddItems, oDeathItems);
+		InitTrampHook(AddItem, 6);
+	}
+	if (oAddItems || oDeathItems || oRandCreatures) {
+		_MESSAGE("oAddItems: %i, oDeathItems: %i, oRandCreatures: %i, initializing the CalcLevListOuter hook...", oAddItems, oDeathItems, oRandCreatures);
+		InitTrampHook(CalcLevListOuter, 7);
+	}
+	if (oRandSpells) {
+		_MESSAGE("oRandSpells: %i, initializing the AddSpellOuter and CastSpellOuter hooks...", oRandSpells);
+		InitTrampHook(AddSpellOuter, 7);
+		InitTrampHook(CastSpellOuter, 7);
+	}
+	if (oInstallCrashFix) {
+		InitTrampHook(CrashFix, 5);
+	}
 }
 
 unsigned int getNumItems(ItemMapPtr map) {
 	unsigned int num = 0;
-	for (auto it = map->begin(); it != map->end(); ++it) {
-		num += (*it).second.size();
+	for (const auto &it: *map) {
+		num += it.second.size();
 	}
 	return num;
 }
@@ -357,12 +466,17 @@ unsigned int getNumItems(ItemMapPtr map) {
 #if OBLIVION
 
 bool Cmd_OBRNListsReady_Execute(COMMAND_ARGS) {
+	static bool stats = false; //there's no point in spamming it every reload
 	*result = allCreatures.size() && allClothingAndArmor.size() && allGenericItems.size() && allWeapons.size() ? 1.0 : 0.0;
-	Console_Print("Randomizer's Lists Info:");
-	Console_Print("Number of creatures: %u", allCreatures.size());
-	Console_Print("Number of clothing/armor: %u", getNumItems(&allClothingAndArmor));
-	Console_Print("Number of generic items: %u", getNumItems(&allGenericItems));
-	Console_Print("Number of weapons: %u", getNumItems(&allWeapons));
+	if (!stats) {
+		Console_Print("Randomizer's Lists Info:");
+		Console_Print("Number of creatures: %u", allCreatures.size());
+		Console_Print("Number of clothing/armor: %u", getNumItems(&allClothingAndArmor));
+		Console_Print("Number of generic items: %u", getNumItems(&allGenericItems));
+		Console_Print("Number of weapons: %u", getNumItems(&allWeapons));
+		Console_Print("Number of spells: %u", allSpells.size());
+		stats = true;
+	}
 	return true;
 }
 
@@ -476,6 +590,7 @@ bool OBSEPlugin_Load(const OBSEInterface * obse)
 
 		// get an OBSEScriptInterface to use for argument extraction
 		g_scriptInterface = (OBSEScriptInterface*)obse->QueryInterface(kInterface_Script);
+		InitConfig();
 		InitHooks();
 	}
 
