@@ -118,6 +118,7 @@ extern int oDeathItems;
 extern int oWorldItems;
 extern int oRandInventory;
 extern int oRandSpells;
+extern int oInstallCrashFix;
 
 extern std::map<UInt32, std::vector<UInt32>> allWeapons;
 extern std::map<UInt32, std::vector<UInt32>> allClothingAndArmor;

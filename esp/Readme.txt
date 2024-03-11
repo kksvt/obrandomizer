@@ -32,12 +32,14 @@ Changelog
 v1.0.2:
 * potential stability increase
 * fixed an error that caused world items from non-master files not to be randomized with oWorldItems 2
+* fixed an error that prevented some containers from being randomized of oRandInventory was set to 1
 * added oRandGold - if it's set to 1, then gold will be treated as a regular object and randomized
 * added oRandSpells - if it's set to 1, then spells will be randomized into spells of the same school; if set to 2, then any spell can be randomized into any spell; note that this feature is not 100% complete
 * oRandContainers has been moved into the main version of the mod
 * dead creatures will no longer be randomized as if they were containers - this feature caused way too many issues to be viable
 * added a distinction between mod files that will be excluded from randomizer's lists and mod files that will be excluded from randomization
 * randomizer's lists info is now only displayed in the console on the initialization as opposed to every reload
+* added an experimental crash patch - if your save game crashes on a load, set the oInstallCrashFix option in the config file to 1; bear in mind that it's an experimental feature and even if your save game loads afterwards, it may be susceptible to corruption
 
 v1.0.1:
 * fixed errors in the randomization code that caused certain items to appear too rarely
@@ -59,7 +61,7 @@ v1.0.0:
 * added an option to controls the chance for each actor to become a vampire (oVampire - 10% by default)
 * added an option to control whether essential creatures are used in the randomizer's lists (oUseEssentialCreatures)
 * added an option to control whether items given through scripts are randomized (oAddItems; 1 = randomize into the same type; 2 = randomize into any item)
-* added an option to control whether items given to creatures/NPCs on their death will be randomized (oDeathItems; 1 = randomzie into the same type; 2 = randomize into any item)
+* added an option to control whether items given to creatures/NPCs on their death will be randomized (oDeathItems; 1 = randomize into the same type; 2 = randomize into any item)
 * added an option to control whether items spawned freely in the world (for example a book lying on a table) will be randomized (oWorldItems; 1 = randomize into the same type, 2 = randomize into any item)
 * oExcludeQuestItems now also controls whether scripted creatures will be included in the randomizer's lists (oUseEssentialCreatures being 1 overrides this)
 * if oRandomizeAttribEssential is set to 0, then Lucien Lachance will also not get his aggression/responsibility/confidence randomized (even though he doesn't become essential until the player kills Rufio)
@@ -158,7 +160,7 @@ Q: How do I know that the mod has been installed properly?
 A: After entering the game with the mod loaded, you should be greeted with "Oblivion Randomizer is ready" in the top left corner of your screen (no matter if you use oDelayStart or not).
 
 Q: Will I need to start a new game?
-A: No.
+A: No, however the spells that the player already has will not be randomized.
 
 Q: I loaded an existing save and certain creatures are not randomized, even though oRandCreatures is set to 1 in the config file. Why is that?
 A: Creatures spawned from leveled lists are by default randomized only on spawn (and in case of an old save they were spawned without the randomizer running). If you want them to be randomized, change oRandCreatures to 2, but be advised that it is not a recommended setting and you should revert it to 1 once you make a new save with them randomized.

@@ -228,7 +228,7 @@ AddItem_t AddItem = NULL;
 
 int __fastcall AddItem_Hook(int _this, void* _edx, TESForm* a2, int a3, char a4) {
 	void* retAddress = _ReturnAddress();
-	if (oAddItems /* && !IsConsoleOpen()*/ && retAddress == (void*)0x00507419 /*called within a script*/) {
+	if (oAddItems && !IsConsoleOpen() && retAddress == (void*)0x00507419 /*called within a script*/) {
 		if (TESForm * replacement = getRandomBySetting(a2, oAddItems)) {
 			a2 = replacement;
 		}
@@ -393,10 +393,30 @@ char __fastcall CastSpellOuter_Hook(DWORD* _this, void* _edx, MagicItem* a2, int
 #endif
 			}
 		}
-		a2 = spellMapping.at(spell);
+		auto it = spellMapping.find(spell);
+		if (it != spellMapping.end()) {
+			a2 = it->second;
+		}
 	}
 	char result = CastSpellOuter(_this, a2, a3, a4);
 	return result;
+}
+
+//im not sure what this function does, but it appears to have something to
+//do with loading textures. it sometimes causes a crash on loading a save.
+//i shouldnt be doing this, but installing this hook at least allows you
+//to load the saved game
+/*bool __thiscall sub_4AC730(_BYTE* this, unsigned __int8 a2)
+{
+	return (a2 & this[24]) != 0;
+}*/
+
+#define CrashFix_Addr 0x004AC730
+typedef bool(__thiscall* CrashFix_t)(BYTE*, UInt8 a2);
+CrashFix_t CrashFix = NULL;
+
+bool __fastcall CrashFix_Hook(BYTE* _this, void* _edx, UInt8 a2) {
+	return 0;
 }
 
 void InitHooks() {
@@ -425,6 +445,9 @@ void InitHooks() {
 		_MESSAGE("oRandSpells: %i, initializing the AddSpellOuter and CastSpellOuter hooks...", oRandSpells);
 		InitTrampHook(AddSpellOuter, 7);
 		InitTrampHook(CastSpellOuter, 7);
+	}
+	if (oInstallCrashFix) {
+		InitTrampHook(CrashFix, 5);
 	}
 }
 
