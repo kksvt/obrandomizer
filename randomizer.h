@@ -100,10 +100,12 @@ enum RandClothes {
 	OBRNRC_UPPER = 8,
 };
 
-enum class ItemRetrievalFlag {
-	all,
-	noQuestItems,
-	rejectOnQuestItem
+enum ItemRetrieval {
+	none = 0,
+	all = 1,
+	noQuestItems = 2,
+	rejectOnQuestItem = 3,
+	noAccumulation = 4,
 };
 
 #define TESFORM2STRING(x) #x
@@ -142,10 +144,10 @@ void randomize(TESObjectREFR* ref, const char* function);
 bool tryToAddForm(TESForm* f);
 TESForm* getRandomByType(TESForm* f);
 TESForm* getRandomBySetting(TESForm* f, int option);
-const char* formIDToString(int form);
+const char* formTypeToString(int form);
 void InitConfig();
 bool refIsItem(TESObjectREFR* ref);
 void randomizeInventory(TESObjectREFR* ref);
-bool getContainerInventory(TESObjectREFR* ref, std::map<TESForm*, int>& itemList, ItemRetrievalFlag flag);
+bool getContainerInventory(TESObjectREFR* ref, std::unordered_map<TESForm*, int>& itemList, UInt16 flag);
 UInt32 rng(UInt32 a, UInt32 b);
 void debugDumpSpells(TESForm* form);

@@ -1,4 +1,5 @@
 #include "randomizer.h"
+#include "obse_common/SafeWrite.h"
 
 IDebugLog		gLog("obrandomizer.log");
 
@@ -136,7 +137,7 @@ int __fastcall CompileFiles_Hook(DWORD* _this, void* _edx, char a2, char a3) {
 			numWeapons += it.second.size();
 		}
 		for (const auto &it : allGenericItems) {
-			name = formIDToString(it.first);
+			name = formTypeToString(it.first);
 			_MESSAGE("(GENERIC): %s: %i", name, it.second.size());
 			for (auto g : it.second) {
 				_MESSAGE("\t%s", GetFullName(LookupFormByID(g)));
@@ -227,7 +228,7 @@ AddItem_t AddItem = NULL;
 
 int __fastcall AddItem_Hook(int _this, void* _edx, TESForm* a2, int a3, char a4) {
 	void* retAddress = _ReturnAddress();
-	if (oAddItems && !IsConsoleOpen() && retAddress == (void*)0x00507419 /*called within a script*/ ) {
+	if (oAddItems /* && !IsConsoleOpen()*/ && retAddress == (void*)0x00507419 /*called within a script*/) {
 		if (TESForm * replacement = getRandomBySetting(a2, oAddItems)) {
 			a2 = replacement;
 		}
@@ -350,13 +351,19 @@ typedef char(__thiscall* AddSpellOuter_t)(Actor*, SpellItem*);
 AddSpellOuter_t AddSpellOuter = NULL;
 
 char __fastcall AddSpellOuter_Hook(Actor* _this, void* _edx, SpellItem* spell) {
-	if ((void*)_this == (void*)(*g_thePlayer) /* && !IsConsoleOpen*/) {
+	static char randMsg[256] = "\0";
+	if ((void*)_this == (void*)(*g_thePlayer) && !IsConsoleOpen()) {
 		TESForm* rando = getRandomBySetting(OBLIVION_CAST(spell, SpellItem, TESForm), oRandSpells);
 		if (rando != NULL) {
 #ifdef _DEBUG
 			_MESSAGE("%s: Spell %s will now become %s, ret: %08X", __FUNCTION__, GetFullName(spell), GetFullName(rando), _ReturnAddress());
 #endif
+			sprintf_s(randMsg, sizeof(randMsg), "Spell %s has been randomized into %s", GetFullName(spell), GetFullName(rando));
 			spell = OBLIVION_CAST(rando, TESForm, SpellItem);
+			QueueUIMessage_2(randMsg, 2.0f, NULL, NULL); 
+			//this is necessary (or well, welcome) since randomizing the spell within this function will still print out
+			//the old spell name. to circumvent that, we'd either have to hook LookupFormByID and keep a spell mapping there 
+			//or hook the function that parses the "AddSpell" script command itself (possibly 0x00514950?) 
 		}
 	}
 	char result = AddSpellOuter(_this, spell);
@@ -380,7 +387,9 @@ char __fastcall CastSpellOuter_Hook(DWORD* _this, void* _edx, MagicItem* a2, int
 			if (rando != NULL) {
 				spellMapping.insert(std::make_pair(spell, OBLIVION_CAST(rando, TESForm, MagicItem)));
 #ifdef _DEBUG
-			_MESSAGE("%s: Spell %s will now become %s. Caster type is %s %08X", __FUNCTION__, GetFullName(spell), GetFullName(OBLIVION_CAST(spellMapping.at(spell), MagicItem, TESForm)), formIDToString(caster->GetFormType()), caster);
+			_MESSAGE("%s: Spell %s will now become %s. Caster is %s %08X (%s %08X)", __FUNCTION__, 
+				GetFullName(spell), GetFullName(OBLIVION_CAST(spellMapping.at(spell), MagicItem, TESForm)), 
+				GetFullName(caster), caster->refID, formTypeToString(caster->GetFormType()), caster);
 #endif
 			}
 		}
@@ -391,7 +400,7 @@ char __fastcall CastSpellOuter_Hook(DWORD* _this, void* _edx, MagicItem* a2, int
 }
 
 void InitHooks() {
-	_MESSAGE("Initializing ConstructObjecet and CompileObject hooks...");
+	_MESSAGE("Initializing ConstructObject and CompileFiles hooks...");
 	InitTrampHook(ConstructObject, 8);
 	InitTrampHook(CompileFiles, 8);
 	if (oRandCreatures > 1) {

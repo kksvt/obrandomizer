@@ -37,8 +37,10 @@ int oDeathItems = 1;
 int oWorldItems = 1;
 int oRandInventory = 1;
 int oRandSpells = 0;
+int oRandGold = 0;
 
-bool skipMod[0xFF] = { 0 };
+bool skipMod[0xFF] = { 0 }; //forms from these mods will not be added to the lists
+bool skipRandMod[0xFF] = { 0 }; //forms from these mods will not be randomized
 UInt8 randId = 0xFF;
 
 UInt32 rng(UInt32 a, UInt32 b) {
@@ -65,7 +67,7 @@ void InitModExcludes() {
 	}
 	if (randId != 0xFF) {
 		_MESSAGE("Randomizer.esp's ID is %02X", randId);
-		skipMod[randId] = true;
+		skipRandMod[randId] = skipMod[randId] = true;
 	}
 	else {
 		_ERROR("Couldn't find Randomizer.esp's mod ID. Make sure that you did not rename the plugin file.");
@@ -75,15 +77,24 @@ void InitModExcludes() {
 		return;
 	}
 	char buf[256] = { 0 };
+	bool* section = skipMod;
 	for (int i = 0; fscanf(f, "%255[^\n]\n", buf) > 0 /* != EOF*/ && i < 0xFF; ++i) {
 		//same reasoning as in InitConfig()
+		if (strcmp(buf, "[DON'T ADD TO LISTS]") == 0) {
+			section = skipMod;
+			continue;
+		}
+		if (strcmp(buf, "[DON'T RANDOMIZE]") == 0) {
+			section = skipRandMod;
+			continue;
+		}
 		UInt8 id = GetModIndexShifted(buf);
 		if (id == 0xFF) {
 			_WARNING("Could not get mod ID for mod %s", buf);
 			continue;
 		}
-		skipMod[id] = true;
-		_MESSAGE("Skipping mod %s\n", buf);
+		section[id] = true;
+		_MESSAGE("Forms from mod %s will not be %s", buf, section == skipMod ? "added to the Randomizer's lists" : "randomized");
 	}
 	fclose(f);
 }
@@ -130,6 +141,7 @@ void InitConfig() {
 		OBRN_CONFIGLINE(buf, oWorldItems);
 		OBRN_CONFIGLINE(buf, oRandInventory);
 		OBRN_CONFIGLINE(buf, oRandSpells);
+		OBRN_CONFIGLINE(buf, oRandGold);
 		//set ZZZOBRNRandomQuest.oUseEssentialCreatures to 0
 		//set ZZZOBRNRandomQuest.oExcludeQuestItems to 1
 	}
@@ -433,18 +445,19 @@ const char* formToString[] = {
 	TESFORM2STRING(kFormType_TOFT)
 };
 
-const char* formIDToString(int form) {
+const char* formTypeToString(int form) {
 	if (form >= 0 && form < sizeof(formToString) / sizeof(const char*)) {
 		return formToString[form];
 	}
 	return "Unknown";
 }
 
-bool getFormsFromLeveledList(TESLeveledList* list, std::map <TESForm*, int>& itemList, ItemRetrievalFlag flag) {
+//returns false if the rejectOnQuestItem flag is on and there's a quest item in the leveled list
+bool getFormsFromLeveledList(TESLeveledList* list, std::vector<std::pair<TESForm*, int>>& itemList, UInt16 flag) {
 	auto data = list->list.Info();
 	auto next = list->list.Next();
-	bool addQuestItems = (flag == ItemRetrievalFlag::all), 
-		rejectOnQuestItem = (flag == ItemRetrievalFlag::rejectOnQuestItem);
+	bool addQuestItems = (flag & ItemRetrieval::all), 
+		rejectOnQuestItem = (flag & ItemRetrieval::rejectOnQuestItem);
 	while (data != NULL) {
 		switch (data->form->GetFormType()) {
 			case kFormType_LeveledItem:
@@ -470,13 +483,22 @@ bool getFormsFromLeveledList(TESLeveledList* list, std::map <TESForm*, int>& ite
 					return false;
 				}
 				if (!questItem || addQuestItems) {
-					auto it = itemList.find(data->form);
 					int count = std::max((UInt16)1, data->count);
-					if (it == itemList.end()) {
-						itemList.insert(std::make_pair(data->form, count));
+					if (flag & ItemRetrieval::noAccumulation) {
+						itemList.push_back(std::make_pair(data->form, count));
 					}
 					else {
-						it->second += count;
+						bool found = false;
+						for (auto& it : itemList) {
+							if (it.first == data->form) {
+								it.second += count;
+								found = true;
+								break;
+							}
+						}
+						if (!found) {
+							itemList.push_back(std::make_pair(data->form, count));
+						}
 					}
 				}
 			}
@@ -491,25 +513,20 @@ bool getFormsFromLeveledList(TESLeveledList* list, std::map <TESForm*, int>& ite
 	return true;
 }
 
-std::pair<TESForm*, int> getRandomFormFromLeveledList(TESLeveledList* list, ItemRetrievalFlag flag) {
-	std::map<TESForm*, int> itemList;
+std::pair<TESForm*, int> getRandomFormFromLeveledList(TESLeveledList* list, UInt16 flag) {
+	std::vector<std::pair<TESForm*, int>> itemList;
 	if (!getFormsFromLeveledList(list, itemList, flag) || !itemList.size()) {
 		return std::make_pair((TESForm*)NULL, (int)0);
 	}
-	int r = rng(0, itemList.size() - 1), i = -1;
-	for (const auto& it : itemList) {
-		if (++i == r) {
+	int r = rng(0, itemList.size() - 1);
 #ifdef _DEBUG
-			_MESSAGE("%s: we are returning %s %08X from the leveled list", __FUNCTION__, GetFullName(it.first), it.second);
+	_MESSAGE("    %s: we are returning %s %08X x%i from the leveled list", __FUNCTION__, GetFullName(itemList[r].first), itemList[r].first->refID, itemList[r].second);
 #endif
-			return it;
-		}
-	}
-	return std::make_pair((TESForm*)NULL, (int)0);
+	return itemList[r];
 }
 
-bool getInventoryFromTESContainer(TESContainer* container, std::map<TESForm*, int>& itemList, ItemRetrievalFlag flag) {
-	bool hasFlag = false, addQuestItems = (flag == ItemRetrievalFlag::all);
+bool getInventoryFromTESContainer(TESContainer* container, std::unordered_map<TESForm*, int>& itemList, UInt16 flag) {
+	bool hasFlag = false, addQuestItems = (flag & ItemRetrieval::all);
 	auto data = container->list.Info();
 	auto next = container->list.Next();
 	while (data != NULL) {
@@ -534,6 +551,9 @@ bool getInventoryFromTESContainer(TESContainer* container, std::map<TESForm*, in
 				break;
 			}
 			default:
+#ifdef _DEBUG
+				_MESSAGE("    Found item %s %08X x%i", GetFullName(data->type), data->type->refID, data->count);
+#endif
 				if (data->type == obrnFlag) {
 #ifdef _DEBUG
 					_MESSAGE("%s: OBRN Flag has been found for", __FUNCTION__);
@@ -546,7 +566,7 @@ bool getInventoryFromTESContainer(TESContainer* container, std::map<TESForm*, in
 					if (it == itemList.end()) {
 						itemList.insert(std::make_pair(data->type, count));
 					}
-					else {
+					else if (!(flag & ItemRetrieval::noAccumulation)) {
 						it->second += count;
 					}
 				}
@@ -562,8 +582,8 @@ bool getInventoryFromTESContainer(TESContainer* container, std::map<TESForm*, in
 	return hasFlag;
 }
 
-bool getContainerInventory(TESObjectREFR* ref, std::map<TESForm*, int> & itemList, ItemRetrievalFlag flag) {
-	bool hasFlag = false, addQuestItems = (flag == ItemRetrievalFlag::all);
+bool getContainerInventory(TESObjectREFR* ref, std::unordered_map<TESForm*, int> & itemList, UInt16 flag) {
+	bool hasFlag = false, addQuestItems = (flag & ItemRetrieval::all);
 	ExtraContainerChanges* cont = (ExtraContainerChanges*)ref->baseExtraList.GetByType(kExtraData_ContainerChanges);
 	while (cont != NULL && cont->data != NULL && cont->data->objList != NULL) {
 		for (auto it = cont->data->objList->Begin(); !it.End(); ++it) {
@@ -578,12 +598,15 @@ bool getContainerInventory(TESObjectREFR* ref, std::map<TESForm*, int> & itemLis
 			}
 			//_MESSAGE("Ref: %s (%08X) (base: %s %08X) : found a %s (%08X %s), quantity: %i",
 			//	GetFullName(ref), ref->refID, GetFullName(ref->baseForm), ref->baseForm->refID, GetFullName(item), item->refID, FormToString(item->GetFormType()), count);
+#ifdef _DEBUG
+			_MESSAGE("    Found item %s %08X x%i", GetFullName(item), item->refID, count);
+#endif
 			if (GetFullName(item)[0] != '<' && (addQuestItems || !isQuestOrScriptedItem(item))) {
 				auto it = itemList.find(item);
 				if (it == itemList.end()) {
 					itemList.insert(std::make_pair(item, count));
 				}
-				else {
+				else if (!(flag & ItemRetrieval::noAccumulation)) {
 					it->second += count;
 				}
 			}
@@ -629,24 +652,17 @@ void randomizeInventory(TESObjectREFR* ref) {
 	if (allGenericItems.size() == 0 || allWeapons.size() == 0 || allClothingAndArmor.size() == 0) {
 		return;
 	}
-	std::map<TESForm*, int> removeItems;
-	bool hasFlag = getContainerInventory(ref, removeItems, oExcludeQuestItems ? ItemRetrievalFlag::noQuestItems : ItemRetrievalFlag::all);
-	if (ref->GetFormType() == kFormType_ACRE) {
-		if (obrnFlag == NULL || hasFlag) {
-			return;
-		}
-#ifdef _DEBUG
-		_MESSAGE("%s %08X didn't have the flag - adding it now", GetFullName(ref), ref->refID);
-#endif
-		ref->AddItem(obrnFlag, NULL, 1);
-	}
+	std::unordered_map<TESForm*, int> removeItems;
+	getContainerInventory(ref, removeItems, oExcludeQuestItems ? ItemRetrieval::noQuestItems : ItemRetrieval::all);
 	for (const auto &it : removeItems) {
 		TESForm* item = it.first;
 		int cnt = it.second;
 		if (oRandInventory == 1) {
 			switch (item->refID) {
 			case ITEM_GOLD:
-				ref->AddItem(item, NULL, rng(5, 60) * getRefLevelAdjusted(ref) - cnt);
+				if (!oRandGold) {
+					ref->AddItem(item, NULL, rng(5, 60) * getRefLevelAdjusted(ref) - cnt);
+				}
 				break;
 			case ITEM_LOCKPICK:
 			case ITEM_REPAIRHAMMER:
@@ -666,7 +682,7 @@ void randomizeInventory(TESObjectREFR* ref) {
 			}
 			}
 		}
-		if (item->refID != ITEM_GOLD && item->GetFormType() != kFormType_Book && item->GetFormType() != kFormType_Key &&
+		if ( (item->refID != ITEM_GOLD || oRandGold) && item->GetFormType() != kFormType_Book && item->GetFormType() != kFormType_Key &&
 			/*(item->GetModIndex() != 0xFF && !skipMod[item->GetModIndex()])*/ item->GetModIndex() != 0xFF && item->GetModIndex() != randId && //i honestly do not remember why i put the original check here
 			(!oExcludeQuestItems || !isQuestOrScriptedItem(item))) {
 			ref->RemoveItem(item, NULL, cnt, 0, 0, NULL, NULL, NULL, 0, 0);
@@ -1190,8 +1206,13 @@ TESForm* getRandom(TESForm* f) {
 	if (oExcludeQuestItems && isQuestOrScriptedItem(f)) {
 		return NULL;
 	}
-	if (f->GetModIndex() != 0xFF && f->GetModIndex() == randId) {
-		//if (f->GetModIndex() != 0xFF && skipMod[f->GetModIndex()]) { //very important!
+	if (f->GetModIndex() != 0xFF && skipRandMod[f->GetModIndex()]) { //very important!
+#ifdef _DEBUG
+		_MESSAGE("Item %s %08X will not be randomized because it belongs to a forbidden mod", GetFullName(f), f->refID);
+#endif
+		return NULL;
+	}
+	if (f->refID == ITEM_GOLD && !oRandGold) {
 		return NULL;
 	}
 	switch (f->GetFormType()) {
@@ -1224,20 +1245,28 @@ TESForm* getRandomByType(TESForm *f) {
 	if (oExcludeQuestItems && isQuestOrScriptedItem(f)) {
 		return NULL;
 	}
-	if (f->GetModIndex() != 0xFF && f->GetModIndex() == randId) {
-	//if (f->GetModIndex() != 0xFF && skipMod[f->GetModIndex()]) { //very important!
+	if (f->GetModIndex() != 0xFF && skipRandMod[f->GetModIndex()]) { //very important!
+#ifdef _DEBUG
+		_MESSAGE("Item %s %08X will not be randomized because it belongs to a forbidden mod", GetFullName(f), f->refID);
+#endif
+		return NULL;
+	}
+	if (f->refID == ITEM_GOLD && !oRandGold) {
+#ifdef _DEBUG
+		_MESSAGE("ITEM_GOLD: returning null because oRandGold == 0");
+#endif
 		return NULL;
 	}
 	switch (f->GetFormType()) {
 		case kFormType_LeveledItem:
 		{
 			TESLevItem* lev = OBLIVION_CAST(f, TESForm, TESLevItem);
-			return getRandomByType(getRandomFormFromLeveledList(&lev->leveledList, ItemRetrievalFlag::rejectOnQuestItem).first);
+			return getRandomByType(getRandomFormFromLeveledList(&lev->leveledList, ItemRetrieval::rejectOnQuestItem).first);
 		}
 		case kFormType_LeveledSpell:
 		{
 			TESLevSpell* lev = OBLIVION_CAST(f, TESForm, TESLevSpell);
-			return getRandomByType(getRandomFormFromLeveledList(&lev->leveledList, ItemRetrievalFlag::rejectOnQuestItem).first);
+			return getRandomByType(getRandomFormFromLeveledList(&lev->leveledList, ItemRetrieval::rejectOnQuestItem).first);
 		}
 		case kFormType_Armor:
 		case kFormType_Clothing:
@@ -1329,7 +1358,7 @@ void randomize(TESObjectREFR* ref, const char* function) {
 			return;
 		}
 		if (strcmp(function, "ESP") == 0) {
-			QueueUIMessage_2("Randomizing creatures through the spell may cause issues", 1000, NULL, NULL);
+			QueueUIMessage_2("Randomizing creatures through the spell may cause issues", 3.0f, NULL, NULL);
 		}
 		else if (!oRandCreatures) {
 			return;
@@ -1342,14 +1371,10 @@ void randomize(TESObjectREFR* ref, const char* function) {
 		if (health == 0) {
 			return;
 		}
-		std::map<TESForm*, int> keepItems;
-		//getContainerInventory(ref, keepItems, true);
+		std::unordered_map<TESForm*, int> keepItems;
+		getContainerInventory(ref, keepItems, (ItemRetrieval::all | ItemRetrieval::noAccumulation));
 		TESForm* oldBaseForm = ref->GetTemplateForm() != NULL ? ref->GetTemplateForm() : ref->baseForm,
 			* rando = LookupFormByID(allCreatures[rng(0, allCreatures.size() - 1)]);
-		TESCreature* creature = OBLIVION_CAST(rando, TESForm, TESCreature);
-		/*if (creature != NULL) {
-			getInventoryFromTESContainer(&creature->container, keepItems, true);
-		}*/
 #ifdef _DEBUG
 		_MESSAGE("%s: Going to randomize %s %08X into %s %08X", function, GetFullName(ref), ref->refID, GetFullName(rando), rando->refID);
 #endif
@@ -1410,7 +1435,7 @@ void debugDumpSpells(TESForm* form) {
 			auto next = actor_base->spellList.leveledSpellList.Next();
 			while (data != NULL) {
 				UInt32 refID = (UInt32)data;
-				fprintf(f, "\tLeveled Spell: %s (%08X) %s\n", GetFullName(data), data->refID, formIDToString(data->GetFormType()));
+				fprintf(f, "\tLeveled Spell: %s (%08X) %s\n", GetFullName(data), data->refID, formTypeToString(data->GetFormType()));
 				if (next == NULL) {
 					break;
 				}

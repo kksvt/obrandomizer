@@ -3,8 +3,8 @@ Information
 =============
 Name: Oblivion Randomizer Mod
 Author: lost cause / brndd
-Date: July 28th 2023
-Version: 1.0.1
+Date: March 11th 2024
+Version: 1.0.2
 
 =============
 Description
@@ -19,13 +19,25 @@ Oblivion Randomizer seeks to randomize as many parts of the game as possible, wh
 * the creatures you encounter[2]
 * actor scaling (optional)
 * random effects applied on each attack (optional)
+* (preview) spells[3]
 
 [1] - does not apply to dead actors
 [2] - provided that they are alive and non essential
+[3] - the two default starting spells (Flare and Heal Minor Wounds) will not be randomized
 
 =============
 Changelog
 =============
+
+v1.0.2:
+* potential stability increase
+* fixed an error that caused world items from non-master files not to be randomized with oWorldItems 2
+* added oRandGold - if it's set to 1, then gold will be treated as a regular object and randomized
+* added oRandSpells - if it's set to 1, then spells will be randomized into spells of the same school; if set to 2, then any spell can be randomized into any spell; note that this feature is not 100% complete
+* oRandContainers has been moved into the main version of the mod
+* dead creatures will no longer be randomized as if they were containers - this feature caused way too many issues to be viable
+* added a distinction between mod files that will be excluded from randomizer's lists and mod files that will be excluded from randomization
+* randomizer's lists info is now only displayed in the console on the initialization as opposed to every reload
 
 v1.0.1:
 * fixed errors in the randomization code that caused certain items to appear too rarely
@@ -117,7 +129,27 @@ a) Chaos - to activate, copy the Randomizer.cfg from the Sample Configs/CHAOS fo
 b) Quest - to activate, copy the Randomizer.cfg from the Sample Configs/QUEST folder to Oblivion/Data. This configuration file makes minimal use of the randomizer's features, randomizing only items and creatures (and races, should you decide to use RandomizerRace files). Won't mess with NPCs' aggression, so it's perfect if you want to do try to do quests without interruptions from actors hellbent on murdering you or each other.
 The idea for the implementation of the configuration file was inspired by Ersh's and Gribbleshnibit8's LootMenu's config (which sadly is still incompatible with the Randomizer, as mentioned in Known Issues), thus I wanna credit them for it.
 
-2) RandomizerSkip.cfg determines which plugin files will be skipped when generating randomizer's lists. For example, if you are playing a total conversion mod, you may want the randomizer not to randomize objects into vanilla Oblivion ones. Thus you ought to put "Oblivion.esm" (without quotation marks) into RandomizerSkip.cfg. Should you desire to exclude more plugin files, simply add their names into RandomizerSkip.cfg, each file name in a separate line.
+2) RandomizerSkip.cfg determines which plugin files will be skipped when generating randomizer's lists and which plugin files will be excluded from being randomized. There are two sections - [DON'T ADD TO LISTS] and [DON'T RANDOMIZE]. 
+
+a) [DON'T ADD TO LISTS]
+For example, if you are playing a total conversion mod, you may want the randomizer not to randomize objects into vanilla Oblivion ones. Thus you ought to put "Oblivion.esm" (without quotation marks) into RandomizerSkip.cfg under [DON'T ADD TO LISTS]. Should you desire to exclude more plugin files, simply add their names into RandomizerSkip.cfg (under [DON'T ADD TO LISTS]), each file name in a separate line.
+
+b) [DON'T RANDOMIZE]
+Let's say you are using the Umpa Animation mod to change the NPCs' animations. You wouldn't want the spells provided by it to be randomized into other spells and you still want normal Oblivion spells to be randomized, thus you should put "77_Umpa_Animation.esp" (without quotation marks) into RandomizerSkip.cfg under [DON'T RANDOMIZE].
+
+A sample RandomizerSkip.cfg config may look like this:
+
+"
+[DON'T ADD TO LISTS]
+DLCBattlehornCastle.esp
+Knights.esp
+
+[DON'T RANDOMIZE]
+77_Umpa_Animation.esp
+DLCVileLair.esp
+"
+
+That way nothing will get randomized into items (or spells or creatures) that are exclusive to the Battlehorn Castle DLC and the Knights of the Nine DLC. In addition, the Umpa Animation spells and objects added by the Vile Lair (Deepscorn Hollow) DLC will not be subject to randomization.
 
 =============
 FAQ
