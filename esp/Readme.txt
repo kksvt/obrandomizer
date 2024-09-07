@@ -3,8 +3,8 @@ Information
 =============
 Name: Oblivion Randomizer Mod
 Author: lost cause / brndd
-Date: March 11th 2024
-Version: 1.0.2
+Date: September 6th 2024
+Version: 1.0.3
 
 =============
 Description
@@ -28,11 +28,16 @@ Oblivion Randomizer seeks to randomize as many parts of the game as possible, wh
 =============
 Changelog
 =============
+v1.0.3:
+* fixed a bug that caused the skeleton key spell to be randomized every frame
+* fixed a bug that caused scripted items not to be treated as quest items
+* all keys given through scripts will now be treated as quest items
+* re-dated the race randomization plugins so that they don't require a mod manager to work
 
 v1.0.2:
 * potential stability increase
 * fixed an error that caused world items from non-master files not to be randomized with oWorldItems 2
-* fixed an error that prevented some containers from being randomized of oRandInventory was set to 1
+* fixed an error that prevented some containers from being randomized if oRandInventory was set to 1
 * added oRandGold - if it's set to 1, then gold will be treated as a regular object and randomized
 * added oRandSpells - if it's set to 1, then spells will be randomized into spells of the same school; if set to 2, then any spell can be randomized into any spell; note that this feature is not 100% complete
 * oRandContainers has been moved into the main version of the mod
@@ -199,9 +204,7 @@ Technical aspects / potential issues
 =======================================
 Keep in mind that my methods most likely leave a lot to be desired, as it's my first "real" mod. I had to learn both the Construction Set and Oblivion's scripting language practically from the scratch, and there are several things that may or may not cause problems:
 
-1. The mod keeps track of randomized actors and containers by giving them an item called ZZZOBRNFlag. Then, during each load, the mod assigns a function through SetEventHandler to OnActivate, which removes the item from them, so that the player does not see it after accessing their inventory. I'm not sure if it's compatible with other mods using SetEventHandler on OnActivate.
-
-2. Race randomization adds duplicate races, with the only distinction being their voice. CopyRace does not preserve the original race's voice, which causes NPCs with unique lines to be unvoiced. Therefore I had to manually copy each race and adjust their voice (for example ArgonianBreton has all the characteristics of an Argonian, save the tail, but uses the Breton voice). The duplicate races have to be marked as playable after exiting the player creation, otherwise their rumors and generic dialogue will be unvoiced. I do not know a way around that.
+1. Race randomization adds duplicate races, with the only distinction being their voice. CopyRace does not preserve the original race's voice, which causes NPCs with unique lines to be unvoiced. Therefore I had to manually copy each race and adjust their voice (for example ArgonianBreton has all the characteristics of an Argonian, save the tail, but uses the Breton voice). The duplicate races have to be marked as playable after exiting the player creation, otherwise their rumors and generic dialogue will be unvoiced. I do not know a way around that.
 
 ==========================
 OBSE Plugin Source Code

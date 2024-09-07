@@ -219,7 +219,10 @@ void addOrAppend(ItemMapPtr map, const UInt32 key, UInt32 value) {
 	}
 }
 
-bool isQuestOrScriptedItem(TESForm* item) {
+bool isQuestOrScriptedItem(TESForm* item, bool keysAreQuestItems) {
+	if (keysAreQuestItems && item->GetFormType() == kFormType_Key) {
+		return true;
+	}
 	if (item->IsQuestItem()) {
 		return true;
 	}
@@ -245,7 +248,7 @@ bool tryToAddForm(TESForm* f) {
 	if (f->GetModIndex() == 0xFF || skipMod[f->GetModIndex()]) {
 		return false;
 	}
-	if (f->GetFormType() != kFormType_Creature && f->IsQuestItem() && oExcludeQuestItems) {
+	if (f->GetFormType() != kFormType_Creature && isQuestOrScriptedItem(f, false) && oExcludeQuestItems) {
 		return false;
 	}
 	if (allAdded.find(f->refID) != allAdded.end()) {
@@ -483,7 +486,7 @@ bool getFormsFromLeveledList(TESLeveledList* list, std::vector<std::pair<TESForm
 			}
 			default:
 			{
-				bool questItem = isQuestOrScriptedItem(data->form);
+				bool questItem = isQuestOrScriptedItem(data->form, false);
 				if (questItem && rejectOnQuestItem) {
 					return false;
 				}
@@ -568,7 +571,7 @@ bool getInventoryFromTESContainer(TESContainer* container, std::unordered_map<TE
 #endif
 					hasFlag = true;
 				}
-				else if (!isQuestOrScriptedItem(data->type) || addQuestItems) {
+				else if (!isQuestOrScriptedItem(data->type, false) || addQuestItems) {
 					auto it = itemList.find(data->type);
 					int count = std::max((SInt32)1, data->count);
 					if (it == itemList.end()) {
@@ -609,7 +612,7 @@ bool getContainerInventory(TESObjectREFR* ref, std::unordered_map<TESForm*, int>
 #ifdef _DEBUG
 			_MESSAGE("    Found item %s %08X x%i", GetFullName(item), item->refID, count);
 #endif
-			if (GetFullName(item)[0] != '<' && (addQuestItems || !isQuestOrScriptedItem(item))) {
+			if (GetFullName(item)[0] != '<' && (addQuestItems || !isQuestOrScriptedItem(item, false))) {
 				auto it = itemList.find(item);
 				if (it == itemList.end()) {
 					itemList.insert(std::make_pair(item, count));
@@ -670,7 +673,7 @@ void randomizeInventory(TESObjectREFR* ref) {
 					}
 				default:
 				{
-					if (TESForm* newItem = getRandomByType(item)) {
+					if (TESForm* newItem = getRandomByType(item, false)) {
 	#ifdef _DEBUG
 						_MESSAGE("Replacing item %s %08X with %s %08X x%i", GetFullName(item), item->refID, GetFullName(newItem), newItem->refID, cnt);
 	#endif
@@ -686,7 +689,7 @@ void randomizeInventory(TESObjectREFR* ref) {
 			item->GetFormType() != kFormType_Book && 
 			item->GetFormType() != kFormType_Key &&
 			item->GetModIndex() != 0xFF && !skipRandMod[item->GetModIndex()] &&
-			(!oExcludeQuestItems || !isQuestOrScriptedItem(item))) {
+			(!oExcludeQuestItems || !isQuestOrScriptedItem(item, false))) {
 			ref->RemoveItem(item, NULL, cnt, 0, 0, NULL, NULL, NULL, 0, 0);
 		}
 	}
@@ -1200,12 +1203,12 @@ void randomizeInventory(TESObjectREFR* ref) {
 	}
 }
 
-TESForm* getRandom(TESForm* f) {
+TESForm* getRandom(TESForm* f, bool keysAreQuestItems) {
 	std::vector<UInt32>* ptr = NULL;
 	if (f == NULL) {
 		return NULL;
 	}
-	if (oExcludeQuestItems && isQuestOrScriptedItem(f)) {
+	if (oExcludeQuestItems && isQuestOrScriptedItem(f, keysAreQuestItems)) {
 		return NULL;
 	}
 	if (f->GetModIndex() != 0xFF && skipRandMod[f->GetModIndex()]) { //very important!
@@ -1238,13 +1241,13 @@ TESForm* getRandom(TESForm* f) {
 	return NULL;
 }
 
-TESForm* getRandomByType(TESForm *f) {
+TESForm* getRandomByType(TESForm *f, bool keysAreQuestItems) {
 	ItemMapPtr ptr = NULL;
 	UInt32 key = 0xFFFFFFFF;
 	if (f == NULL) {
 		return NULL;
 	}
-	if (oExcludeQuestItems && isQuestOrScriptedItem(f)) {
+	if (oExcludeQuestItems && isQuestOrScriptedItem(f, keysAreQuestItems)) {
 		return NULL;
 	}
 	if (f->GetModIndex() != 0xFF && skipRandMod[f->GetModIndex()]) { //very important!
@@ -1263,12 +1266,12 @@ TESForm* getRandomByType(TESForm *f) {
 		case kFormType_LeveledItem:
 		{
 			TESLevItem* lev = OBLIVION_CAST(f, TESForm, TESLevItem);
-			return getRandomByType(getRandomFormFromLeveledList(&lev->leveledList, ItemRetrieval::rejectOnQuestItem).first);
+			return getRandomByType(getRandomFormFromLeveledList(&lev->leveledList, ItemRetrieval::rejectOnQuestItem).first, keysAreQuestItems);
 		}
 		case kFormType_LeveledSpell:
 		{
 			TESLevSpell* lev = OBLIVION_CAST(f, TESForm, TESLevSpell);
-			return getRandomByType(getRandomFormFromLeveledList(&lev->leveledList, ItemRetrieval::rejectOnQuestItem).first);
+			return getRandomByType(getRandomFormFromLeveledList(&lev->leveledList, ItemRetrieval::rejectOnQuestItem).first, keysAreQuestItems);
 		}
 		case kFormType_Armor:
 		case kFormType_Clothing:
@@ -1330,14 +1333,14 @@ TESForm* getRandomByType(TESForm *f) {
 	return NULL;
 }
 
-TESForm* getRandomBySetting(TESForm* f, int option) {
+TESForm* getRandomBySetting(TESForm* f, int option, bool keysAreQuestItems) {
 	switch (option) {
 	case 0:
 		return NULL;
 	case 1:
-		return getRandomByType(f);
+		return getRandomByType(f, keysAreQuestItems);
 	case 2:
-		return getRandom(f);
+		return getRandom(f, keysAreQuestItems);
 	default:
 		_MESSAGE("Invalid option %i for getRandomBySetting", option);
 		return NULL;
@@ -1397,7 +1400,7 @@ void randomize(TESObjectREFR* ref, const char* function) {
 #ifdef _DEBUG
 		_MESSAGE("%s: World item randomization: will try to randomize %s %08X", function, GetFullName(ref), ref->refID);
 #endif
-		if (TESForm* rando = getRandomBySetting(ref->baseForm, oWorldItems)) {
+		if (TESForm* rando = getRandomBySetting(ref->baseForm, oWorldItems, false)) {
 #ifdef _DEBUG
 			_MESSAGE("%s: Going to randomize %s %08X into %s %08X", function, GetFullName(ref), ref->refID, GetFullName(rando), rando->refID);
 #endif

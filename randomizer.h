@@ -37,6 +37,7 @@ extern OBSEScriptInterface* g_scriptInterface;
 #define ITEM_GOLD 0x0000000F
 #define ITEM_REPAIRHAMMER 0x0000000C
 #define ITEM_LOCKPICK 0x0000000A
+#define SPELL_SKELETONKEY 0x000C45AA
 
 struct LevListResult_t {
 	struct LevListData_t {
@@ -143,8 +144,8 @@ void fillUpWpRanges();
 void addOrAppend(ItemMapPtr map, const UInt32 key, UInt32 value);
 void randomize(TESObjectREFR* ref, const char* function);
 bool tryToAddForm(TESForm* f);
-TESForm* getRandomByType(TESForm* f);
-TESForm* getRandomBySetting(TESForm* f, int option);
+TESForm* getRandomByType(TESForm* f, bool keysAreQuestItems);
+TESForm* getRandomBySetting(TESForm* f, int option, bool keysAreQuestItems);
 const char* formTypeToString(int form);
 void InitConfig();
 bool refIsItem(TESObjectREFR* ref);

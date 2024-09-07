@@ -14,7 +14,7 @@ bool checked_mods = false;
 
 #define OBRN_VERSION_MAJOR 1
 #define OBRN_VERSION_MINOR 0
-#define OBRN_VERSION_REVISION 2
+#define OBRN_VERSION_REVISION 3
 
 #define CompileFiles_Addr 0x0044F3D0
 typedef int(__thiscall* CompileFiles_t)(DWORD*, char, char);
@@ -229,7 +229,7 @@ AddItem_t AddItem = NULL;
 int __fastcall AddItem_Hook(int _this, void* _edx, TESForm* a2, int a3, char a4) {
 	void* retAddress = _ReturnAddress();
 	if (oAddItems && !IsConsoleOpen() && retAddress == (void*)0x00507419 /*called within a script*/) {
-		if (TESForm * replacement = getRandomBySetting(a2, oAddItems)) {
+		if (TESForm * replacement = getRandomBySetting(a2, oAddItems, true)) {
 			a2 = replacement;
 		}
 	}
@@ -328,7 +328,7 @@ void __fastcall CalcLevListOuter_Hook(TESLeveledList* _this, void* _edx, int a2,
 		while (result != NULL) {
 			if (result->data != NULL) {
 				if (deathItem || scriptAddItem) {
-					if (TESForm* ref = getRandomBySetting(result->data->item, deathItem ? oDeathItems : oAddItems)) {
+					if (TESForm* ref = getRandomBySetting(result->data->item, deathItem ? oDeathItems : oAddItems, scriptAddItem ? true : false)) {
 						result->data->item = ref;
 					}
 				}
@@ -352,8 +352,8 @@ AddSpellOuter_t AddSpellOuter = NULL;
 
 char __fastcall AddSpellOuter_Hook(Actor* _this, void* _edx, SpellItem* spell) {
 	static char randMsg[256] = "\0";
-	if ((void*)_this == (void*)(*g_thePlayer) && !IsConsoleOpen()) {
-		TESForm* rando = getRandomBySetting(OBLIVION_CAST(spell, SpellItem, TESForm), oRandSpells);
+	if (spell->refID != SPELL_SKELETONKEY /*skeleton key*/ && (void*)_this == (void*)(*g_thePlayer) && !IsConsoleOpen()) {
+		TESForm* rando = getRandomBySetting(OBLIVION_CAST(spell, SpellItem, TESForm), oRandSpells, false);
 		if (rando != NULL) {
 #ifdef _DEBUG
 			_MESSAGE("%s: Spell %s will now become %s, ret: %08X", __FUNCTION__, GetFullName(spell), GetFullName(rando), _ReturnAddress());
@@ -383,12 +383,12 @@ char __fastcall CastSpellOuter_Hook(DWORD* _this, void* _edx, MagicItem* a2, int
 	SpellItem* spell = OBLIVION_CAST(a2, MagicItem, SpellItem);
 	if ((void*)(*g_thePlayer) != (void*)caster && spell != NULL && allSpells.size()) {
 		if (!spellMapping.contains(spell)) {
-			TESForm *rando = getRandomBySetting(OBLIVION_CAST(a2, MagicItem, TESForm), oRandSpells);
+			TESForm *rando = getRandomBySetting(OBLIVION_CAST(a2, MagicItem, TESForm), oRandSpells, false);
 			if (rando != NULL) {
 				spellMapping.insert(std::make_pair(spell, OBLIVION_CAST(rando, TESForm, MagicItem)));
 #ifdef _DEBUG
-			_MESSAGE("%s: Spell %s will now become %s. Caster is %s %08X (%s %08X)", __FUNCTION__, 
-				GetFullName(spell), GetFullName(OBLIVION_CAST(spellMapping.at(spell), MagicItem, TESForm)), 
+			_MESSAGE("%s: Spell %s (%08X) will now become %s. Caster is %s %08X (%s %08X)", __FUNCTION__, 
+				GetFullName(spell), GetFullName(OBLIVION_CAST(spellMapping.at(spell), MagicItem, TESForm)), spell->refID, 
 				GetFullName(caster), caster->refID, formTypeToString(caster->GetFormType()), caster);
 #endif
 			}
