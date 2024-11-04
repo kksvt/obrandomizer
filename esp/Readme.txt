@@ -3,8 +3,8 @@ Information
 =============
 Name: Oblivion Randomizer Mod
 Author: lost cause / brndd
-Date: September 6th 2024
-Version: 1.0.3
+Date: November 5th 2024
+Version: 1.0.4
 
 =============
 Description
@@ -28,6 +28,10 @@ Oblivion Randomizer seeks to randomize as many parts of the game as possible, wh
 =============
 Changelog
 =============
+v1.0.4:
+* spells sold by vendors will no longer be randomized upon purchase
+* spells will no longer be randomized from or into Porphyric Hemophilia
+
 v1.0.3:
 * fixed a bug that caused the skeleton key spell to be randomized every frame
 * fixed a bug that caused scripted items not to be treated as quest items

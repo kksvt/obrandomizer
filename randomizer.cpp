@@ -334,9 +334,11 @@ bool tryToAddForm(TESForm* f) {
 	case kFormType_Spell:
 	{
 		SpellItem* spell = OBLIVION_CAST(f, TESForm, SpellItem);
-		ptr = &allSpellsBySchool;
-		key = spell->GetSchool();
-		allSpells.push_back(f->refID);
+		if (!spellBlacklisted(spell)) {		
+			ptr = &allSpellsBySchool;
+			key = spell->GetSchool();
+			allSpells.push_back(f->refID);
+		}
 		break;
 	}
 	default:
@@ -630,6 +632,9 @@ bool getContainerInventory(TESObjectREFR* ref, std::unordered_map<TESForm*, int>
 			ptr = ptr->next;
 		}
 		cont = (ExtraContainerChanges*)ptr;
+	}
+	if (flag & ItemRetrieval::noTESContainer) {
+		return hasFlag;
 	}
 	return std::max(hasFlag, getInventoryFromTESContainer(ref->GetContainer(), itemList, flag | ItemRetrieval::noAccumulation));
 }
@@ -1410,6 +1415,16 @@ void randomize(TESObjectREFR* ref, const char* function) {
 	}
 	else {
 		randomizeInventory(ref);
+	}
+}
+
+bool spellBlacklisted(SpellItem* spell) {
+	switch (spell->refID) {
+		case SPELL_SKELETONKEY:
+		case SPELL_HEMOPHILIA:
+			return true;
+		default:
+			return false;
 	}
 }
 

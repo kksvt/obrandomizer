@@ -14,11 +14,15 @@ bool checked_mods = false;
 
 #define OBRN_VERSION_MAJOR 1
 #define OBRN_VERSION_MINOR 0
-#define OBRN_VERSION_REVISION 3
+#define OBRN_VERSION_REVISION 4
 
 #define CompileFiles_Addr 0x0044F3D0
 typedef int(__thiscall* CompileFiles_t)(DWORD*, char, char);
 CompileFiles_t CompileFiles = NULL;
+
+#ifdef _DEBUG
+std::list<TESObjectREFR*> evaluateActors;
+#endif
 
 int __fastcall CompileFiles_Hook(DWORD* _this, void* _edx, char a2, char a3) {
 	if (!checked_mods) {
@@ -37,6 +41,9 @@ int __fastcall CompileFiles_Hook(DWORD* _this, void* _edx, char a2, char a3) {
 			allItems.push_back(it);
 		}
 		files_read = true;
+#ifdef _DEBUG
+		_MESSAGE("Files have been read.");
+#endif
 		for (auto it : toRandomize) {
 			randomize(it, __FUNCTION__);
 		}
@@ -185,6 +192,18 @@ int __fastcall CompileFiles_Hook(DWORD* _this, void* _edx, char a2, char a3) {
 			numWeapons, numGenericItems, numArmorClothing, numCreatures, numSpells);
 #endif
 	}
+#ifdef _DEBUG
+	FILE* f = fopen(__FUNCTION__"_yes.txt", "a");
+	for (auto ref : evaluateActors) {
+		fprintf(f, "Ref: %s (%08X), files read: %s\n", GetFullName(ref), ref->refID, files_read ? "true" : "false");
+		std::unordered_map<TESForm*, int> itemList;
+		getContainerInventory(ref, itemList, ItemRetrieval::none);
+		for (auto it : itemList) {
+			fprintf(f, " item: %s (%08X) %s, %i\n", GetFullName(it.first), it.first->refID, formTypeToString(it.first->GetFormType()), it.second);
+		}
+	}
+	fclose(f);
+#endif
 	return result;
 }
 
@@ -198,7 +217,7 @@ int __fastcall ConstructObject_Hook(unsigned char* _this, void* _edx, int a2, ch
 		UInt32 refID = *((UInt32*)(a2 + 584));
 		TESForm* form = LookupFormByID(refID);
 		void* retAddress = _ReturnAddress();
-		if (form == NULL) {
+		if (!form) {
 			return result;
 		}
 		if (form->IsReference()) {
@@ -212,6 +231,13 @@ int __fastcall ConstructObject_Hook(unsigned char* _this, void* _edx, int a2, ch
 					toRandomize.push_back(ref);
 				}
 			}
+#ifdef _DEBUG
+			//
+			if (ref && ref->baseForm && ref->GetFormType() == kFormType_ACHR) {
+				evaluateActors.push_back(ref);
+			}
+			//
+#endif
 		}
 		else {
 			if (!files_read && retAddress == (void*)0x0044F221) { //called by a function that loads forms from an esp/esm
@@ -352,11 +378,13 @@ AddSpellOuter_t AddSpellOuter = NULL;
 
 char __fastcall AddSpellOuter_Hook(Actor* _this, void* _edx, SpellItem* spell) {
 	static char randMsg[256] = "\0";
-	if (spell->refID != SPELL_SKELETONKEY /*skeleton key*/ && (void*)_this == (void*)(*g_thePlayer) && !IsConsoleOpen()) {
+	void* retAddress = _ReturnAddress();
+	if ((void*)_this == (void*)(*g_thePlayer) && !IsConsoleOpen() && retAddress == (void*)0x005149FB /*called within a script*/ &&
+		!spellBlacklisted(spell)) {
 		TESForm* rando = getRandomBySetting(OBLIVION_CAST(spell, SpellItem, TESForm), oRandSpells, false);
 		if (rando != NULL) {
 #ifdef _DEBUG
-			_MESSAGE("%s: Spell %s will now become %s, ret: %08X", __FUNCTION__, GetFullName(spell), GetFullName(rando), _ReturnAddress());
+			_MESSAGE("%s: Spell %s will now become %s, ret: %08X", __FUNCTION__, GetFullName(spell), GetFullName(rando), retAddress);
 #endif
 			sprintf_s(randMsg, sizeof(randMsg), "Spell %s has been randomized into %s", GetFullName(spell), GetFullName(rando));
 			spell = OBLIVION_CAST(rando, TESForm, SpellItem);
@@ -388,7 +416,7 @@ char __fastcall CastSpellOuter_Hook(DWORD* _this, void* _edx, MagicItem* a2, int
 				spellMapping.insert(std::make_pair(spell, OBLIVION_CAST(rando, TESForm, MagicItem)));
 #ifdef _DEBUG
 			_MESSAGE("%s: Spell %s (%08X) will now become %s. Caster is %s %08X (%s %08X)", __FUNCTION__, 
-				GetFullName(spell), GetFullName(OBLIVION_CAST(spellMapping.at(spell), MagicItem, TESForm)), spell->refID, 
+				GetFullName(spell), spell->refID, GetFullName(OBLIVION_CAST(spellMapping.at(spell), MagicItem, TESForm)),
 				GetFullName(caster), caster->refID, formTypeToString(caster->GetFormType()), caster);
 #endif
 			}

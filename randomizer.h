@@ -37,7 +37,9 @@ extern OBSEScriptInterface* g_scriptInterface;
 #define ITEM_GOLD 0x0000000F
 #define ITEM_REPAIRHAMMER 0x0000000C
 #define ITEM_LOCKPICK 0x0000000A
+
 #define SPELL_SKELETONKEY 0x000C45AA
+#define SPELL_HEMOPHILIA 0x0003DB3D
 
 struct LevListResult_t {
 	struct LevListData_t {
@@ -107,6 +109,7 @@ enum ItemRetrieval {
 	noQuestItems = 2,
 	rejectOnQuestItem = 3,
 	noAccumulation = 4,
+	noTESContainer = 8,
 };
 
 #define TESFORM2STRING(x) #x
@@ -152,4 +155,5 @@ bool refIsItem(TESObjectREFR* ref);
 void randomizeInventory(TESObjectREFR* ref);
 bool getContainerInventory(TESObjectREFR* ref, std::unordered_map<TESForm*, int>& itemList, UInt16 flag);
 UInt32 rng(UInt32 a, UInt32 b);
+bool spellBlacklisted(SpellItem* spell);
 void debugDumpSpells(TESForm* form);
