@@ -415,9 +415,15 @@ char __fastcall CastSpellOuter_Hook(DWORD* _this, void* _edx, MagicItem* a2, int
 			if (rando != NULL) {
 				spellMapping.insert(std::make_pair(spell, OBLIVION_CAST(rando, TESForm, MagicItem)));
 #ifdef _DEBUG
-			_MESSAGE("%s: Spell %s (%08X) will now become %s. Caster is %s %08X (%s %08X)", __FUNCTION__, 
+			/*_MESSAGE("%s: Spell %s (%08X) will now become %s. Caster is %s %08X (%s %08X)", __FUNCTION__,
 				GetFullName(spell), spell->refID, GetFullName(OBLIVION_CAST(spellMapping.at(spell), MagicItem, TESForm)),
-				GetFullName(caster), caster->refID, formTypeToString(caster->GetFormType()), caster);
+				GetFullName(caster), caster->refID, formTypeToString(caster->GetFormType()), caster);*/
+			//funnily enough, this actually crashes
+			//the game raelly hates calling baseform->GetFullname
+			//on the caster, for reasons unknown
+			//its as if the caster *sometimes* wasnt a proper TESForm
+				_MESSAGE("%s: Spell %s (%08X) will now become %s.", __FUNCTION__, 
+					GetFullName(spell), spell->refID, GetFullName(OBLIVION_CAST(spellMapping.at(spell), MagicItem, TESForm)));
 #endif
 			}
 		}
