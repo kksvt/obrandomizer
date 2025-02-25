@@ -14,7 +14,7 @@ bool checked_mods = false;
 
 #define OBRN_VERSION_MAJOR 1
 #define OBRN_VERSION_MINOR 0
-#define OBRN_VERSION_REVISION 4
+#define OBRN_VERSION_REVISION 5
 
 #define CompileFiles_Addr 0x0044F3D0
 typedef int(__thiscall* CompileFiles_t)(DWORD*, char, char);
@@ -266,7 +266,6 @@ int __fastcall AddItem_Hook(int _this, void* _edx, TESForm* a2, int a3, char a4)
 typedef TESForm* (__stdcall* LoadForm_t)(UInt32, UInt32*);
 LoadForm_t LoadForm = NULL;
 
-
 TESForm* __stdcall LoadForm_Hook(UInt32 a1, UInt32* a2) {
 #ifdef _DEBUG_LOADFORM
 	static int calls = 0;
@@ -315,6 +314,99 @@ TESForm* __stdcall LoadForm_Hook(UInt32 a1, UInt32* a2) {
 	return result;
 }
 
+/*
+here edi should be equal to form id?
+.text:00465C9A                 add     esp, 18h
+.text:00465C9D                 cmp     edi, 0FEFFFFFFh
+.text:00465CA3                 jnz     short loc_465D04
+.text:00465CA5                 fldz
+.text:00465CA7                 mov     edx, [esi+4]
+.text:00465CAA                 push    ebx
+*/
+
+static const UInt32 LoadGameHookStart = 0x00465C9A;
+static const UInt32 LoadGameHookReturn = 0x00465CAA;
+static const UInt32 LoadGameJump = 0x00465D04;
+static const UInt32 LoadGameSkip = 0x0046686C;
+
+static TESForm* LoadGameForm;
+static UInt32 _edi;
+
+static __declspec(naked) void LoadGamePatch(void) {
+	__asm {
+		pushad
+		mov _edi, edi
+	}
+
+	LoadGameForm = LookupFormByID(_edi);
+	
+	__asm {
+		popad
+		add esp, 18h
+		cmp edi, 0FEFFFFFFh
+		jnz loc_465D04
+		fldz
+		mov edx, [esi + 4]
+		jmp[LoadGameHookReturn]
+
+		loc_465D04:
+		jmp[LoadGameJump]
+	}
+
+}
+
+/*
+.text:00602709                 cmp     word ptr [esp+24h+arg_0], bx <- hook here
+.text:0060270E                 jbe     short loc_602788
+.text:00602710 <- return to this
+.text:00602710 loc_602710:
+*/
+static const UInt32 LoadObjectStart = 0x00602709;
+static const UInt32 LoadObjectReturn = 0x00602710;
+static const UInt32 LoadObjectJump = 0x00602788;
+static const UInt32 LoadObjectCancel = 0x00602788;
+static WORD LoadObjectDataLength = 0;
+static UInt32 _ebx;
+
+static __declspec(naked) void LoadObjectPatch(void) {
+	_asm { //fixme: is there a prettier way to do this?
+		mov _ebx, ebx
+		mov bx, word ptr[esp + 28h]
+		mov LoadObjectDataLength, bx //msvc doesnt allow "mov LoadObjectDataLength, word ptr[esp + 28h]"
+		mov ebx, _ebx
+		pushad
+	}
+
+	if (LoadObjectDataLength > 0 &&
+		LoadGameForm && LoadGameForm->GetFormType() == kFormType_ACRE) {
+		//i dont know what data is loaded from the save file here,
+		//but according to my research (i.e. logging LoadObjectDataLength
+		//for several vanilla-ish saves) this should be non-zero only for actors.
+		
+		//in a seemingly corrupted save, this would take incredibly high values
+		//for horses (up to several thousands), low to medium values for sheep
+		//and almost 2k for a starving mountain lion, with the aforementioned lion
+		//crashing the game. i suspect it has something to do with non-horse creatures
+		//being randomized into horse creatures and vice versa, so we will exclude it
+		//from the mod for the time being
+		_asm {
+			popad
+			jmp [LoadObjectCancel]
+		}
+	}
+
+	_asm {
+		popad
+		cmp     word ptr[esp + 28h], bx
+		jbe     short loc_602788
+		jmp [LoadObjectReturn]
+
+		loc_602788:
+			jmp [LoadObjectJump]
+	}
+}
+
+
 #define LoadObject_Addr 0x006022F0
 typedef unsigned int(__thiscall* LoadObject_t)(DWORD*, int, int);
 LoadObject_t LoadObject = NULL;
@@ -330,7 +422,9 @@ unsigned int __fastcall LoadObject_Hook(DWORD* _this, void* _edx, int a2, int a3
 		//there are plenty of flags that are not documented and determining what
 		//they do does not seem trivial
 	}
+
 	restoreFlags.clear();
+
 	unsigned int result = LoadObject(_this, a2, a3);
 	return result;
 }
@@ -480,8 +574,13 @@ void InitHooks() {
 		InitTrampHook(AddSpellOuter, 7);
 		InitTrampHook(CastSpellOuter, 7);
 	}
-	if (oInstallCrashFix) {
+	if (oInstallCrashFix & 1) {
 		InitTrampHook(CrashFix, 5);
+	}
+	
+	if (oInstallCrashFix & 2) {
+		WriteRelJump(LoadGameHookStart, (UInt32)&LoadGamePatch);
+		WriteRelJump(LoadObjectStart, (UInt32)&LoadObjectPatch);
 	}
 }
 

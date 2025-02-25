@@ -55,6 +55,7 @@
     </ClCompile>
     <ClCompile Include="hook.cpp" />
     <ClCompile Include="randomizer.cpp" />
+    <ClCompile Include="..\obse\obse_common\SafeWrite.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\obse\obse\GameActorValues.h">

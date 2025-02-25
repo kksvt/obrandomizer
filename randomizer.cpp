@@ -40,6 +40,7 @@ int oRandInventory = 1;
 int oRandSpells = 0;
 int oRandGold = 0;
 int oInstallCrashFix = 0;
+int oSkipHorses = 1;
 
 bool skipMod[0xFF] = { 0 }; //forms from these mods will not be added to the lists
 bool skipRandMod[0xFF] = { 0 }; //forms from these mods will not be randomized
@@ -145,6 +146,7 @@ void InitConfig() {
 		OBRN_CONFIGLINE(buf, oRandSpells);
 		OBRN_CONFIGLINE(buf, oRandGold);
 		OBRN_CONFIGLINE(buf, oInstallCrashFix);
+		OBRN_CONFIGLINE(buf, oSkipHorses);
 		//set ZZZOBRNRandomQuest.oUseEssentialCreatures to 0
 		//set ZZZOBRNRandomQuest.oExcludeQuestItems to 1
 	}
@@ -233,6 +235,136 @@ bool isQuestOrScriptedItem(TESForm* item, bool keysAreQuestItems) {
 	return false;
 }
 
+bool modelExists(TESForm* f) {
+	const char* model1, *model2;
+	model1 = model2 = NULL;
+	switch (f->GetFormType()) {
+		case kFormType_Spell:
+			return true;
+		case kFormType_Armor: {
+			TESObjectARMO* armor = OBLIVION_CAST(f, TESForm, TESObjectARMO);
+			model1 = armor->bipedModel.GetPath(TESBipedModelForm::kPath_Ground, false);
+			model2 = armor->bipedModel.GetPath(TESBipedModelForm::kPath_Ground, true);
+			break;
+		}
+		case kFormType_Clothing: {
+			TESObjectCLOT* clothing = OBLIVION_CAST(f, TESForm, TESObjectCLOT);
+			model1 = clothing->bipedModel.GetPath(TESBipedModelForm::kPath_Ground, false);
+			model2 = clothing->bipedModel.GetPath(TESBipedModelForm::kPath_Ground, true);
+			break;
+		}
+		case kFormType_Weapon: {
+			TESObjectWEAP* weapon = OBLIVION_CAST(f, TESForm, TESObjectWEAP);
+			model1 = weapon->model.GetModelPath();
+			break;
+		}
+		case kFormType_Apparatus: {
+			TESObjectAPPA* apparatus = OBLIVION_CAST(f, TESForm, TESObjectAPPA);
+			model1 = apparatus->model.GetModelPath();
+			break;
+		}
+		case kFormType_Book: {
+			TESObjectBOOK* book = OBLIVION_CAST(f, TESForm, TESObjectBOOK);
+			model1 = book->model.GetModelPath();
+			break;
+		}
+		case kFormType_Ingredient: {
+			IngredientItem* item = OBLIVION_CAST(f, TESForm, IngredientItem);
+			model1 = item->model.GetModelPath();
+			break;
+		}
+		case kFormType_Misc: {
+			TESObjectMISC* misc = OBLIVION_CAST(f, TESForm, TESObjectMISC);
+			model1 = misc->model.GetModelPath();
+			break;
+		}
+		case kFormType_Ammo: {
+			TESAmmo* ammo = OBLIVION_CAST(f, TESForm, TESAmmo);
+			model1 = ammo->model.GetModelPath();
+			break;
+		}
+		case kFormType_SoulGem: {
+			TESSoulGem* soulgem = OBLIVION_CAST(f, TESForm, TESSoulGem);
+			model1 = soulgem->model.GetModelPath();
+			break;
+		}
+		case kFormType_Key: {
+			TESKey* key = OBLIVION_CAST(f, TESForm, TESKey);
+			model1 = key->model.GetModelPath();
+			break;
+		}
+		case kFormType_AlchemyItem: {
+			AlchemyItem* alchemy = OBLIVION_CAST(f, TESForm, AlchemyItem);
+			model1 = alchemy->model.GetModelPath();
+			break;
+		}
+		case kFormType_SigilStone: {
+			TESSigilStone* sigilstone = OBLIVION_CAST(f, TESForm, TESSigilStone);
+			model1 = sigilstone->model.GetModelPath();
+			break;
+		}
+		default:
+	#ifdef _DEBUG
+			_MESSAGE("Model validation: not supported for %s", formTypeToString(f->GetFormType()));
+	#endif
+			return true;
+	}
+	if (!model1 && !model2) {
+#ifdef _DEBUG
+		_MESSAGE("Model validation: %s (%08X %s) has NULL model1 and model2", GetFullName(f), f->refID, formTypeToString(f->GetFormType()));
+#endif
+		return false;
+	}
+
+	if (model1) {
+		_MESSAGE("Model validation: %s (%08X %s) has model1 %s", GetFullName(f), f->refID, formTypeToString(f->GetFormType()), model1);
+		if (!model1[0]) {
+#ifdef _DEBUG
+			_MESSAGE("...rejecting it because its empty.");
+#endif
+			return false;
+		}
+	}
+
+	if (model2) {
+		_MESSAGE("Model validation: %s (%08X %s) has model2 %s", GetFullName(f), f->refID, formTypeToString(f->GetFormType()), model2);
+		if (!model2[0]) {
+#ifdef _DEBUG
+			_MESSAGE("...rejecting it because its empty.");
+#endif
+			return false;
+		}
+	}
+	return true;
+}
+
+bool creatureValid(const char* name, const char* model) {
+	//hardcoded exception for SI grummites without a working model + excluding some test creatures
+	if (!name[0]) {
+		return false;
+	}
+
+	if (strstr(name, "Test")) {
+		return false;
+	}
+	
+	if (strncmp(name, "Grummite Whelp", 14) == 0 && 
+		strncmp(model, "GobLegs01.NIF", 13) == 0) {
+		return false;
+	}
+
+	//exclude creatures with a lowercase letter followed by an uppercase letter - these are typically
+	//test creatures
+	//would be lovely, but it ends up excluding GateKeeper
+	/*for (int i = 0; name[i + 1]; ++i) {
+		if (islower(name[i]) && isupper(name[i + 1])) {
+			return false;
+		}
+	}*/
+
+	return true;
+}
+
 bool tryToAddForm(TESForm* f) {
 	ItemMapPtr ptr = NULL;
 	UInt32 key = 0xFFFFFFFF;
@@ -271,8 +403,8 @@ bool tryToAddForm(TESForm* f) {
 					model = "";
 				}
 				//hardcoded exception for SI grummites without a working model + excluding some test creatures
-				if (strstr(name, "Test") == NULL && (strncmp(name, "Grummite Whelp", 14) ||
-					strncmp(model, "GobLegs01.NIF", 13))) {
+				if ((!oSkipHorses || critter->type != TESCreature::eCreatureType_Horse)
+					&& creatureValid(name, model)) {
 					allCreatures.push_back(f->refID);
 					allAdded.insert(f->refID);
 					return true;
@@ -345,8 +477,10 @@ bool tryToAddForm(TESForm* f) {
 		break;
 	}
 	if (ptr != NULL && key != 0xFFFFFFFF) {
-		addOrAppend(ptr, key, f->refID);
-		return true;
+		if (modelExists(f)) {
+			addOrAppend(ptr, key, f->refID);
+			return true;
+		}
 	}
 	return false;
 }
@@ -600,8 +734,16 @@ bool getContainerInventory(TESObjectREFR* ref, std::unordered_map<TESForm*, int>
 	ExtraContainerChanges* cont = (ExtraContainerChanges*)ref->baseExtraList.GetByType(kExtraData_ContainerChanges);
 	while (cont != NULL && cont->data != NULL && cont->data->objList != NULL) {
 		for (auto it = cont->data->objList->Begin(); !it.End(); ++it) {
-			TESForm* item = it->type;
-			UInt32 count = std::max((SInt32)1, it->countDelta);
+			//TESForm* item = it->type; //this line has crashed. 
+			//it should not crash until any circumstances. but it has. and everything about the underlying classes is horrible.
+			auto itemEntry = it.accessNode();
+			if (!itemEntry || !itemEntry->item) {
+				//anvil jailor (be56) consistently triggers this
+				_WARNING("itemEntry or itemEntry->item is NULL for %s (%08X %s)", GetFullName(ref), ref->refID, formTypeToString(ref->GetFormType()));
+				continue;
+			}
+			TESForm* item = itemEntry->item->type;
+			UInt32 count = std::max((SInt32)1, itemEntry->item->countDelta);
 			if (item == obrnFlag) {
 				hasFlag = true;
 #ifdef _DEBUG
@@ -612,7 +754,7 @@ bool getContainerInventory(TESObjectREFR* ref, std::unordered_map<TESForm*, int>
 			//_MESSAGE("Ref: %s (%08X) (base: %s %08X) : found a %s (%08X %s), quantity: %i",
 			//	GetFullName(ref), ref->refID, GetFullName(ref->baseForm), ref->baseForm->refID, GetFullName(item), item->refID, FormToString(item->GetFormType()), count);
 #ifdef _DEBUG
-			_MESSAGE("    Found item %s %08X x%i", GetFullName(item), item->refID, count);
+			_MESSAGE("    Found item %s %08X x%u", GetFullName(item), item->refID, count);
 #endif
 			if (GetFullName(item)[0] != '<' && (addQuestItems || !isQuestOrScriptedItem(item, false))) {
 				auto it = itemList.find(item);
@@ -1373,8 +1515,15 @@ void randomize(TESObjectREFR* ref, const char* function) {
 		else if (!oRandCreatures || (ref->GetModIndex() != 0xFF && skipRandMod[ref->GetModIndex()])) {
 			return;
 		}
+		TESCreature* critter = OBLIVION_CAST(ref->baseForm, TESForm, TESCreature);
+		if (oSkipHorses && critter->type == TESCreature::eCreatureType_Horse) {
+#ifdef _DEBUG
+			_MESSAGE("...skipping because its a horse.");
+#endif
+			return;
+		}
 		Actor* actor = OBLIVION_CAST(ref, TESObjectREFR, Actor);
-		if (actor == NULL) {
+		if (!actor) {
 			return;
 		}
 		UInt32 health = actor->GetBaseActorValue(kActorVal_Health), aggression = actor->GetActorValue(kActorVal_Aggression);
@@ -1397,6 +1546,7 @@ void randomize(TESObjectREFR* ref, const char* function) {
 			int cnt = it.second;
 			ref->AddItem(item, NULL, cnt);
 		}
+		ref->Update3D();
 	}
 	else if (refIsItem(ref)) {
 		if (!oWorldItems || (ref->GetModIndex() != 0xFF && skipRandMod[ref->GetModIndex()])) {
