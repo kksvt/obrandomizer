@@ -389,11 +389,14 @@ static __declspec(naked) void LoadObjectPatch(void) {
 		//crashing the game. i suspect it has something to do with non-horse creatures
 		//being randomized into horse creatures and vice versa, so we will exclude it
 		//from the mod for the time being
+		LoadGameForm = NULL; //clean up, just to be safe
 		_asm {
 			popad
 			jmp [LoadObjectCancel]
 		}
 	}
+
+	LoadGameForm = NULL; //clean up, just to be safe
 
 	_asm {
 		popad

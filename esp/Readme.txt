@@ -3,8 +3,8 @@ Information
 =============
 Name: Oblivion Randomizer Mod
 Author: lost cause / brndd
-Date: November 5th 2024
-Version: 1.0.4
+Date: March 9th 2025
+Version: 1.0.5
 
 =============
 Description
@@ -28,6 +28,13 @@ Oblivion Randomizer seeks to randomize as many parts of the game as possible, wh
 =============
 Changelog
 =============
+v1.0.5:
+* special thanks to razorblade457 for his bug reports and testing
+* added oSkipHorses (default 1) - if it's set to 1, then rideable creatures (mounts) will no longer take part in randomization, as I believe they are the root cause of many crashes/save corruption issues. Set to 0 at your own risk.
+* added 2 as an option to oInstallCrashFix - it will attempt to fix saves that crash because of corrupt creature data; if you wish for both oInstallCrashFix patches to be enabled at once, set it to 3.
+* objects with empty models will no longer be randomized
+* fixed a strange crash that was sometimes caused by randomizing jailor guards
+
 v1.0.4:
 * spells sold by vendors will no longer be randomized upon purchase
 * spells will no longer be randomized from or into Porphyric Hemophilia
@@ -188,7 +195,8 @@ A: Sure! You're welcome to alter it in any way you'd like, however I'd ask you t
 Known Issues
 =============
 1. Save corruption / Frequent crashes
-As of v1.0.0, I believe the save corruption to be largely gone - I could not reproduce it in any way, but that does not mean it has been fixed. You have to keep in mind that Oblivion is an old game, running on a dated engine that is riddled with issues even in the vanilla game, and randomizing creatures, inventories, NPC stats and so on is bound to exacerbate the problems with it. You should most likely backup the saves you intend to play on with the mod just to be safe. Having said that, I am convinced that this is the most stable the mod has ever been and it will ever be.
+As of v1.0.0, I believe the save corruption to be largely gone - I could not reproduce it in any way, but that does not mean it has been fixed. You have to keep in mind that Oblivion is an old game, running on a dated engine that is riddled with issues even in the vanilla game, and randomizing creatures, inventories, NPC stats and so on is bound to exacerbate the problems with it. You should most likely backup the saves you intend to play on with the mod just to be safe. 
+If you find yourself unable to load your save due to crashes to desktop, try setting the oInstallCrashFix option to 2 or 3.
 
 2. showracemenu [RandomizerRace specific]
 Due to the way race randomization is implemented, you should NOT call showracemenu after finishing the tutorial (or choose "Edit Race" before exiting the sewers). Otherwise you will have to scroll through duplicate races, that are the same as their original counterparts, with the exception of their voice.

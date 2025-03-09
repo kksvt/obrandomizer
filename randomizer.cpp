@@ -327,7 +327,9 @@ bool modelExists(TESForm* f) {
 	}
 
 	if (model2) {
+#ifdef _DEBUG
 		_MESSAGE("Model validation: %s (%08X %s) has model2 %s", GetFullName(f), f->refID, formTypeToString(f->GetFormType()), model2);
+#endif
 		if (!model2[0]) {
 #ifdef _DEBUG
 			_MESSAGE("...rejecting it because its empty.");
