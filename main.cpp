@@ -1,4 +1,6 @@
 #include "randomizer.h"
+#include "utils.h"
+#include "rng.h"
 #include "obse_common/SafeWrite.h"
 
 IDebugLog		gLog("obrandomizer.log");
@@ -12,21 +14,20 @@ OBSEScriptInterface			* g_scriptIntfc = NULL;
 bool files_read = false;
 bool checked_mods = false;
 
+OblivionRng rng;
+OblivionCfg config;
+
 #define OBRN_VERSION_MAJOR 1
-#define OBRN_VERSION_MINOR 0
-#define OBRN_VERSION_REVISION 5
+#define OBRN_VERSION_MINOR 1
+#define OBRN_VERSION_REVISION 0
 
 #define CompileFiles_Addr 0x0044F3D0
 typedef int(__thiscall* CompileFiles_t)(DWORD*, char, char);
 CompileFiles_t CompileFiles = NULL;
 
-#ifdef _DEBUG
-std::list<TESObjectREFR*> evaluateActors;
-#endif
-
 int __fastcall CompileFiles_Hook(DWORD* _this, void* _edx, char a2, char a3) {
 	if (!checked_mods) {
-		InitModExcludes();
+		config.ReadExcludesFromFile("Data/RandomizerSkip.cfg");
 		checked_mods = true;
 	}
 	int result = CompileFiles(_this, a2, a3);
@@ -35,7 +36,7 @@ int __fastcall CompileFiles_Hook(DWORD* _this, void* _edx, char a2, char a3) {
 		fillUpClothingRanges();
 		for (auto it : allAdded) {
 			TESForm* form = LookupFormByID(it);
-			if (form == NULL || form->GetFormType() == kFormType_Creature || form->GetFormType() == kFormType_Spell) {
+			if (!form || form->GetFormType() == kFormType_Creature || form->GetFormType() == kFormType_Spell) {
 				continue;
 			}
 			allItems.push_back(it);
@@ -48,162 +49,14 @@ int __fastcall CompileFiles_Hook(DWORD* _this, void* _edx, char a2, char a3) {
 			randomize(it, __FUNCTION__);
 		}
 		toRandomize.clear();
-		if (obrnFlag == NULL) {
+		if (!obrnFlag) {
 			_ERROR("Couldn't find OBRN Flag in the loaded files. Some features will not work properly.");
 		}
 		allAdded.clear();
 #ifdef _DEBUG
-		UInt32 numArmorClothing = 0, numWeapons = 0, numGenericItems = 0, numCreatures = allCreatures.size(), numSpells = 0;
-		const char* name = NULL;
-		_MESSAGE("At the end of the list generation, we have:");
-		for (const auto &it : allClothingAndArmor) {
-			switch (it.first) {
-			case kSlot_Head:
-				name = "Helmets";
-				break;
-			case kSlot_LeftRing:
-				name = "Rings";
-				break;
-			case kSlot_Shield:
-				name = "Shields";
-				break;
-			case kSlot_Amulet:
-				name = "Amulets";
-				break;
-			case kSlot_UpperBody:
-				name = "Upper body";
-				break;
-			case kSlot_LowerBody:
-				name = "Lower body";
-				break;
-			case kSlot_UpperHand:
-				name = "Upper hand";
-				break;
-			case kSlot_UpperLower:
-				name = "Upper lower";
-				break;
-			case kSlot_UpperLowerFoot:
-				name = "Upper lower foot";
-				break;
-			case kSlot_UpperLowerHand:
-				name = "Upper lower hand";
-				break;
-			case kSlot_UpperLowerHandFoot:
-				name = "Upper lower hand foot";
-				break;
-			case kSlot_Foot:
-				name = "Foot";
-				break;
-			case kSlot_Hand:
-				name = "Hand";
-				break;
-			case kSlot_Weapon:
-				name = "Weapon?";
-				break;
-			case kSlot_Torch:
-				name = "Torch?";
-				break;
-			case kSlot_Quiver:
-				name = "Quiver?";
-				break;
-			case kSlot_Tail:
-				name = "Tail?";
-				break;
-			default:
-				name = "Unknown";
-				break;
-			}
-			_MESSAGE("(CLOTHING) %s (%i): %i", name, it.first, it.second.size());
-			for (auto cloth : it.second) {
-				_MESSAGE("\t%s", GetFullName(LookupFormByID(cloth)));
-			}
-			numArmorClothing += it.second.size();
-		}
-		for (const auto &it : allWeapons) {
-			switch (it.first) {
-			case TESObjectWEAP::kType_BladeOneHand:
-				name = "Blade";
-				break;
-			case TESObjectWEAP::kType_BluntOneHand:
-				name = "Blunt";
-				break;
-			case TESObjectWEAP::kType_Bow:
-				name = "Bow";
-				break;
-			case TESObjectWEAP::kType_Staff:
-				name = "Staff";
-				break;
-			default:
-				name = "Unknown Weapon";
-				break;
-			}
-			_MESSAGE("(WEAPON) %s: %i", name, it.second.size());
-			for (auto wp : it.second) {
-				_MESSAGE("\t%s", GetFullName(LookupFormByID(wp)));
-			}
-			numWeapons += it.second.size();
-		}
-		for (const auto &it : allGenericItems) {
-			name = formTypeToString(it.first);
-			_MESSAGE("(GENERIC): %s: %i", name, it.second.size());
-			for (auto g : it.second) {
-				_MESSAGE("\t%s", GetFullName(LookupFormByID(g)));
-			}
-			numGenericItems += it.second.size();
-		}
-		for (const auto &it : allSpellsBySchool) {
-			switch (it.first) {
-			case EffectSetting::kEffect_Alteration:
-				name = "Alteration";
-				break;
-			case EffectSetting::kEffect_Conjuration:
-				name = "Conjuration";
-				break;
-			case EffectSetting::kEffect_Destruction:
-				name = "Destruction";
-				break;
-			case EffectSetting::kEffect_Illusion:
-				name = "Illusion";
-				break;
-			case EffectSetting::kEffect_Mysticism:
-				name = "Mysticism";
-				break;
-			case EffectSetting::kEffect_Restoration:
-				name = "Restoration";
-				break;
-			default:
-				name = "Unknown";
-				break;
-			}
-			_MESSAGE("(SPELL): %s: %i", name, it.second.size());
-			for (auto spell : it.second) {
-				_MESSAGE("\t%s", GetFullName(LookupFormByID(spell)));
-			}
-			numSpells += it.second.size();
-		}
-		_MESSAGE("(CREATURE): %i", numCreatures);
-		for (auto it : allCreatures) {
-			_MESSAGE("\t%s", GetFullName(LookupFormByID(it)));
-		}
-		if (oRandInventory) {
-			_MESSAGE("There are %u total items", allItems.size());
-		}
-		_MESSAGE("There are %u weapons, %u generic items, %u pieces of clothing / armor, %u creatures and %u spells in the lists", 
-			numWeapons, numGenericItems, numArmorClothing, numCreatures, numSpells);
+		logDetailedListInfo();
 #endif
 	}
-#ifdef _DEBUG
-	FILE* f = fopen(__FUNCTION__"_yes.txt", "a");
-	for (auto ref : evaluateActors) {
-		fprintf(f, "Ref: %s (%08X), files read: %s\n", GetFullName(ref), ref->refID, files_read ? "true" : "false");
-		std::unordered_map<TESForm*, int> itemList;
-		getContainerInventory(ref, itemList, ItemRetrieval::none);
-		for (auto it : itemList) {
-			fprintf(f, " item: %s (%08X) %s, %i\n", GetFullName(it.first), it.first->refID, formTypeToString(it.first->GetFormType()), it.second);
-		}
-	}
-	fclose(f);
-#endif
 	return result;
 }
 
@@ -222,8 +75,9 @@ int __fastcall ConstructObject_Hook(unsigned char* _this, void* _edx, int a2, ch
 		}
 		if (form->IsReference()) {
 			TESObjectREFR* ref = OBLIVION_CAST(form, TESForm, TESObjectREFR);
-			if (ref != NULL && ref->baseForm != NULL && 
-				((oRandCreatures && ref->GetFormType() == kFormType_ACRE) || (oWorldItems && refIsItem(ref)))) {
+			if (ref && ref->baseForm && 
+				((config.oRandCreatures && ref->GetFormType() == kFormType_ACRE) || 
+					(config.oWorldItems && refIsItem(ref)))) {
 				if (files_read) {
 					randomize(ref, __FUNCTION__);
 				}
@@ -231,13 +85,6 @@ int __fastcall ConstructObject_Hook(unsigned char* _this, void* _edx, int a2, ch
 					toRandomize.push_back(ref);
 				}
 			}
-#ifdef _DEBUG
-			//
-			if (ref && ref->baseForm && ref->GetFormType() == kFormType_ACHR) {
-				evaluateActors.push_back(ref);
-			}
-			//
-#endif
 		}
 		else {
 			if (!files_read && retAddress == (void*)0x0044F221) { //called by a function that loads forms from an esp/esm
@@ -254,8 +101,8 @@ AddItem_t AddItem = NULL;
 
 int __fastcall AddItem_Hook(int _this, void* _edx, TESForm* a2, int a3, char a4) {
 	void* retAddress = _ReturnAddress();
-	if (oAddItems && !IsConsoleOpen() && retAddress == (void*)0x00507419 /*called within a script*/) {
-		if (TESForm * replacement = getRandomBySetting(a2, oAddItems, true)) {
+	if (config.oAddItems && !IsConsoleOpen() && retAddress == (void*)0x00507419 /*called within a script*/) {
+		if (TESForm * replacement = getRandomBySetting(a2, config.oAddItems, true)) {
 			a2 = replacement;
 		}
 	}
@@ -303,7 +150,7 @@ TESForm* __stdcall LoadForm_Hook(UInt32 a1, UInt32* a2) {
 	}*/
 #endif
 	TESForm* result = LoadForm(a1, a2);
-	if (oRandCreatures > 1 && result != NULL) {
+	if (config.oRandCreatures > 1 && result) {
 		if (result->GetFormType() == kFormType_ACRE && (a1 >> 24) == 0xFF) {
 			TESObjectREFR* ref = OBLIVION_CAST(result, TESForm, TESObjectREFR);
 			restoreFlags.insert(std::make_pair(ref, ref->flags));
@@ -327,7 +174,7 @@ here edi should be equal to form id?
 static const UInt32 LoadGameHookStart = 0x00465C9A;
 static const UInt32 LoadGameHookReturn = 0x00465CAA;
 static const UInt32 LoadGameJump = 0x00465D04;
-static const UInt32 LoadGameSkip = 0x0046686C;
+//static const UInt32 LoadGameSkip = 0x0046686C;
 
 static TESForm* LoadGameForm;
 static UInt32 _edi;
@@ -443,15 +290,17 @@ void __fastcall CalcLevListOuter_Hook(TESLeveledList* _this, void* _edx, int a2,
 	void* retAddress = _ReturnAddress();
 	CalcLevListOuter(_this, a2, a3, a4);
 	TESForm* lev = (TESForm*)((UInt32)_this - 36);
-	bool deathItem = oDeathItems && retAddress == (void*)0x005EA464,
-		creatureSpawn = allCreatures.size() && oRandCreatures && lev->GetFormType() == kFormType_LeveledCreature,
-		scriptAddItem = oAddItems && retAddress == (void*)0x005073FA /*called within a script*/ && lev->GetFormType() == kFormType_LeveledItem;
+	bool deathItem = config.oDeathItems && retAddress == (void*)0x005EA464,
+		creatureSpawn = allCreatures.size() && config.oRandCreatures && lev->GetFormType() == kFormType_LeveledCreature,
+		scriptAddItem = config.oAddItems && retAddress == (void*)0x005073FA /*called within a script*/ && 
+		lev->GetFormType() == kFormType_LeveledItem;
 	if (a4 && (deathItem || creatureSpawn || scriptAddItem)) {
 		LevListResult_t* result = (LevListResult_t*)(a4 + 8);
-		while (result != NULL) {
-			if (result->data != NULL) {
+		while (result) {
+			if (result->data) {
 				if (deathItem || scriptAddItem) {
-					if (TESForm* ref = getRandomBySetting(result->data->item, deathItem ? oDeathItems : oAddItems, scriptAddItem ? true : false)) {
+					if (TESForm* ref = getRandomBySetting(result->data->item, 
+						deathItem ? config.oDeathItems : config.oAddItems, scriptAddItem ? true : false)) {
 						result->data->item = ref;
 					}
 				}
@@ -478,8 +327,8 @@ char __fastcall AddSpellOuter_Hook(Actor* _this, void* _edx, SpellItem* spell) {
 	void* retAddress = _ReturnAddress();
 	if ((void*)_this == (void*)(*g_thePlayer) && !IsConsoleOpen() && retAddress == (void*)0x005149FB /*called within a script*/ &&
 		!spellBlacklisted(spell)) {
-		TESForm* rando = getRandomBySetting(OBLIVION_CAST(spell, SpellItem, TESForm), oRandSpells, false);
-		if (rando != NULL) {
+		TESForm* rando = getRandomBySetting(OBLIVION_CAST(spell, SpellItem, TESForm), config.oRandSpells, false);
+		if (rando) {
 #ifdef _DEBUG
 			_MESSAGE("%s: Spell %s will now become %s, ret: %08X", __FUNCTION__, GetFullName(spell), GetFullName(rando), retAddress);
 #endif
@@ -506,10 +355,10 @@ char __fastcall CastSpellOuter_Hook(DWORD* _this, void* _edx, MagicItem* a2, int
 	//_this - 23 = caster
 	TESForm* caster = (TESForm*)(DWORD*)(_this - 23);
 	SpellItem* spell = OBLIVION_CAST(a2, MagicItem, SpellItem);
-	if ((void*)(*g_thePlayer) != (void*)caster && spell != NULL && allSpells.size()) {
+	if ((void*)(*g_thePlayer) != (void*)caster && spell && allSpells.size()) {
 		if (!spellMapping.contains(spell)) {
-			TESForm *rando = getRandomBySetting(OBLIVION_CAST(a2, MagicItem, TESForm), oRandSpells, false);
-			if (rando != NULL) {
+			TESForm *rando = getRandomBySetting(OBLIVION_CAST(a2, MagicItem, TESForm), config.oRandSpells, false);
+			if (rando) {
 				spellMapping.insert(std::make_pair(spell, OBLIVION_CAST(rando, TESForm, MagicItem)));
 #ifdef _DEBUG
 			/*_MESSAGE("%s: Spell %s (%08X) will now become %s. Caster is %s %08X (%s %08X)", __FUNCTION__,
@@ -554,8 +403,9 @@ void InitHooks() {
 	_MESSAGE("Initializing ConstructObject and CompileFiles hooks...");
 	InitTrampHook(ConstructObject, 8);
 	InitTrampHook(CompileFiles, 8);
-	if (oRandCreatures > 1) {
-		_MESSAGE("oRandCreatures: %i, initializing LoadForm and LoadObject hooks...\nWARNING: This setting is highly unstable", oRandCreatures);
+	if (config.oRandCreatures > 1) {
+		_MESSAGE("oRandCreatures: %i, initializing LoadForm and LoadObject hooks...\nWARNING: This setting is highly unstable", 
+			config.oRandCreatures);
 		//this hook's existence causes crashes on reloading as it appears to prevent the existing player or other reference forms
 		//from being removed from the memory. a possible threading issue, as the pseudocode prints out the warning below
 		// based on certain values from GetCurrentThreadId()
@@ -564,24 +414,25 @@ void InitHooks() {
 		InitTrampHook(LoadObject, 11);
 		//i dont think delving into it is worth it though, oRandCreatures being set to 2 is not a recommended setting
 	}
-	if (oAddItems || oDeathItems) {
-		_MESSAGE("oAddItems: %i, oDeathItems: %i, initializing the AddItem hook...", oAddItems, oDeathItems);
+	if (config.oAddItems || config.oDeathItems) {
+		_MESSAGE("oAddItems: %i, oDeathItems: %i, initializing the AddItem hook...", config.oAddItems, config.oDeathItems);
 		InitTrampHook(AddItem, 6);
 	}
-	if (oAddItems || oDeathItems || oRandCreatures) {
-		_MESSAGE("oAddItems: %i, oDeathItems: %i, oRandCreatures: %i, initializing the CalcLevListOuter hook...", oAddItems, oDeathItems, oRandCreatures);
+	if (config.oAddItems || config.oDeathItems || config.oRandCreatures) {
+		_MESSAGE("oAddItems: %i, oDeathItems: %i, oRandCreatures: %i, initializing the CalcLevListOuter hook...", 
+			config.oAddItems, config.oDeathItems, config.oRandCreatures);
 		InitTrampHook(CalcLevListOuter, 7);
 	}
-	if (oRandSpells) {
-		_MESSAGE("oRandSpells: %i, initializing the AddSpellOuter and CastSpellOuter hooks...", oRandSpells);
+	if (config.oRandSpells) {
+		_MESSAGE("oRandSpells: %i, initializing the AddSpellOuter and CastSpellOuter hooks...", config.oRandSpells);
 		InitTrampHook(AddSpellOuter, 7);
 		InitTrampHook(CastSpellOuter, 7);
 	}
-	if (oInstallCrashFix & 1) {
+	if (config.oInstallCrashFix & 1) {
 		InitTrampHook(CrashFix, 5);
 	}
 	
-	if (oInstallCrashFix & 2) {
+	if (config.oInstallCrashFix & 2) {
 		WriteRelJump(LoadGameHookStart, (UInt32)&LoadGamePatch);
 		WriteRelJump(LoadObjectStart, (UInt32)&LoadObjectPatch);
 	}
@@ -625,12 +476,53 @@ bool Cmd_OBRNRandomize_Execute(COMMAND_ARGS) {
 	return true;
 }
 
+bool Cmd_OBRNGetSetting_Execute(COMMAND_ARGS) {
+	char s[512];
+	OblivionCfgValueType type;
+	SInt32 offset;
+	*result = -1.0f;
+	if (ExtractArgsEx(paramInfo, arg1, opcodeOffsetPtr, scriptObj, eventList, &s)) {
+		type = config.GetSettingType(s, &offset);
+		switch (type) {
+			case FV_NONE:
+				Console_Print("Couldn't find setting \'%s\'", s);
+				return true;
+			case FV_UINT:
+				*result = config.GetSettingValueByOffset<UInt32>(offset);
+#ifdef _DEBUG
+				Console_Print("Retrieved value %.f for setting \'%s\' (uint)", *result, s);
+#endif
+				return true;
+			case FV_SINT8:
+				*result = config.GetSettingValueByOffset<SInt8>(offset);
+#ifdef _DEBUG
+				Console_Print("Retrieved value %.f for setting \'%s\' (byte)", *result, s);
+#endif
+				return true;
+			case FV_FLOAT:
+				*result = config.GetSettingValueByOffset<double>(offset);
+#ifdef _DEBUG
+				Console_Print("Retrieved value %.2f for setting \'%s\' (double)", *result, s);
+#endif
+				return true;
+			case FV_BOOL:
+				*result = config.GetSettingValueByOffset<bool>(offset);
+#ifdef _DEBUG
+				Console_Print("Retrieved value %.f for setting \'%s\' (bool)", *result, s);
+#endif
+				return true;
+		}
+	}
+	return true;
+}
+
 #endif
 /**************************
 * Command definitions
 **************************/
 DEFINE_COMMAND_PLUGIN(OBRNRandomize, "Randomizes the passed object", 0, 1, kParams_OneObjectRef);
 DEFINE_COMMAND_PLUGIN(OBRNListsReady, "Returns 1 if the lists are prepared", 0, 0, {});
+DEFINE_COMMAND_PLUGIN(OBRNGetSetting, "Returns the value for a specified config setting", 0, 1, kParams_OneString);
 
 extern "C" {
 
@@ -714,6 +606,7 @@ bool OBSEPlugin_Load(const OBSEInterface * obse)
 	obse->SetOpcodeBase(0x2500); //0x2500 to 0x2507
 	obse->RegisterCommand(&kCommandInfo_OBRNRandomize);
 	obse->RegisterCommand(&kCommandInfo_OBRNListsReady);
+	obse->RegisterCommand(&kCommandInfo_OBRNGetSetting);
 
 	// set up serialization callbacks when running in the runtime
 	if(!obse->isEditor)
@@ -726,7 +619,13 @@ bool OBSEPlugin_Load(const OBSEInterface * obse)
 
 		// get an OBSEScriptInterface to use for argument extraction
 		g_scriptInterface = (OBSEScriptInterface*)obse->QueryInterface(kInterface_Script);
-		InitConfig();
+		config.ReadCfgFromFile("Data/Randomizer.cfg");
+		if (config.HasSeed()) {
+			rng.seed(config.oSeed);
+		}
+		else {
+			rng.seed();
+		}
 		InitHooks();
 	}
 

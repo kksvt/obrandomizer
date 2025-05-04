@@ -4,6 +4,9 @@
     <Filter Include="obse">
       <UniqueIdentifier>{a3e82dc2-aaf2-4c99-af33-02d3aa02a51f}</UniqueIdentifier>
     </Filter>
+    <Filter Include="headers">
+      <UniqueIdentifier>{aa59adec-6356-44a4-abcc-570265682b0c}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\obse\obse\GameActorValues.cpp">
@@ -56,6 +59,10 @@
     <ClCompile Include="hook.cpp" />
     <ClCompile Include="randomizer.cpp" />
     <ClCompile Include="..\obse\obse_common\SafeWrite.cpp" />
+    <ClCompile Include="debugdump.cpp" />
+    <ClCompile Include="utils.cpp" />
+    <ClCompile Include="rng.cpp" />
+    <ClCompile Include="config.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\obse\obse\GameActorValues.h">
@@ -106,8 +113,24 @@
     <ClInclude Include="..\obse\obse\Utilities.h">
       <Filter>obse</Filter>
     </ClInclude>
-    <ClInclude Include="hook.h" />
-    <ClInclude Include="randomizer.h" />
+    <ClInclude Include="utils.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="randomizer.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="obse_headers.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="hook.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="rng.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="config.h">
+      <Filter>headers</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\obse\obse\GameRTTI_1_2_416.inl">

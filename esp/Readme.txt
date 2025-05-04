@@ -3,8 +3,8 @@ Information
 =============
 Name: Oblivion Randomizer Mod
 Author: lost cause / brndd
-Date: March 9th 2025
-Version: 1.0.5
+Date: May ? 2025
+Version: 1.1.0
 
 =============
 Description
@@ -28,6 +28,16 @@ Oblivion Randomizer seeks to randomize as many parts of the game as possible, wh
 =============
 Changelog
 =============
+v1.1.0:
+* BACKWARDS CONFIG INCOMPATIBILITY: configs made for the previous versions of the mod will no longer be compatible with this version
+* added a GUI application to facilitate config creation
+* added oExcludeUnplayableItems - if it's set to 1, then armors marked as unplayable won't take part in the randomization
+* added a fixed seed option (oSeed). Leave it empty to have a random seed every launch
+* oRandContainers now has three options (0 - disabled, 1 - randomize every item into an item of the same time, 2 - randomize every item without restrictions) and is separate from actors' oRandInventory
+* fixed a minor bug in the oRandInventory 2 when randomizing bows and staves
+* oRandomizeAttrib and oRandomizeAttribEssential are now merged into one setting (oRandomizeAttrib; 0 - disabled, 1 - only non-essential, 2 - all)
+* removed a debug print previously displayed when re-enabling manually randomized creatures 
+
 v1.0.5:
 * special thanks to razorblade457 for his bug reports and testing
 * added oSkipHorses (default 1) - if it's set to 1, then rideable creatures (mounts) will no longer take part in randomization, as I believe they are the root cause of many crashes/save corruption issues. Set to 0 at your own risk.
@@ -137,6 +147,7 @@ Uninstallation
 * Randomizer.CFG
 * RandomizerSkip.CFG
 2) Delete obrandomizer.DLL from Oblivion/Data/OBSE/Plugins.
+3) Delete obrandomizer-gui.EXE and obrn-configs from your Oblivion folder.
 
 =============
 Configuration
