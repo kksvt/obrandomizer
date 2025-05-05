@@ -79,16 +79,24 @@ int __fastcall ConstructObject_Hook(unsigned char* _this, void* _edx, int a2, ch
 				((config.oRandCreatures && ref->GetFormType() == kFormType_ACRE) || 
 					(config.oWorldItems && refIsItem(ref)))) {
 				if (files_read) {
-					randomize(ref, __FUNCTION__);
+					randomize(form, __FUNCTION__);
 				}
 				else {
-					toRandomize.push_back(ref);
+					toRandomize.push_back(form);
 				}
 			}
 		}
 		else {
 			if (!files_read && retAddress == (void*)0x0044F221) { //called by a function that loads forms from an esp/esm
 				tryToAddForm(form);
+			}
+			if (form->GetFormType() == kFormType_Spell) {
+				if (files_read) {
+					randomize(form, __FUNCTION__);
+				}
+				else {
+					toRandomize.push_back(form);
+				}
 			}
 		}
 	}
@@ -349,32 +357,13 @@ char __fastcall AddSpellOuter_Hook(Actor* _this, void* _edx, SpellItem* spell) {
 typedef char(__thiscall* CastSpellOuter_t)(DWORD*, MagicItem*, int, int);
 CastSpellOuter_t CastSpellOuter = NULL;
 
-std::unordered_map<SpellItem*, MagicItem*> spellMapping;
-
 char __fastcall CastSpellOuter_Hook(DWORD* _this, void* _edx, MagicItem* a2, int a3, int a4) {
 	//_this - 23 = caster
 	TESForm* caster = (TESForm*)(DWORD*)(_this - 23);
-	SpellItem* spell = OBLIVION_CAST(a2, MagicItem, SpellItem);
-	if ((void*)(*g_thePlayer) != (void*)caster && spell && allSpells.size()) {
-		if (!spellMapping.contains(spell)) {
-			TESForm *rando = getRandomBySetting(OBLIVION_CAST(a2, MagicItem, TESForm), config.oRandSpells, false);
-			if (rando) {
-				spellMapping.insert(std::make_pair(spell, OBLIVION_CAST(rando, TESForm, MagicItem)));
-#ifdef _DEBUG
-			/*_MESSAGE("%s: Spell %s (%08X) will now become %s. Caster is %s %08X (%s %08X)", __FUNCTION__,
-				GetFullName(spell), spell->refID, GetFullName(OBLIVION_CAST(spellMapping.at(spell), MagicItem, TESForm)),
-				GetFullName(caster), caster->refID, formTypeToString(caster->GetFormType()), caster);*/
-			//funnily enough, this actually crashes
-			//the game raelly hates calling baseform->GetFullname
-			//on the caster, for reasons unknown
-			//its as if the caster *sometimes* wasnt a proper TESForm
-				_MESSAGE("%s: Spell %s (%08X) will now become %s.", __FUNCTION__, 
-					GetFullName(spell), spell->refID, GetFullName(OBLIVION_CAST(spellMapping.at(spell), MagicItem, TESForm)));
-#endif
-			}
-		}
-		auto it = spellMapping.find(spell);
+	if ((void*)(*g_thePlayer) != (void*)caster && a2) {
+		auto it = spellMapping.find(a2);
 		if (it != spellMapping.end()) {
+			//Console_Print("%s => %s, %i %i", a2->name.m_data, it->second->name.m_data, a3, a4);
 			a2 = it->second;
 		}
 	}

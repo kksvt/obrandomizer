@@ -324,7 +324,7 @@ bool getFormsFromLeveledList(TESLeveledList* list, std::vector<std::pair<TESForm
 		}
 
 		}
-		if (next == NULL) {
+		if (!next) {
 			break;
 		}
 		data = next->Info();
@@ -339,7 +339,7 @@ std::pair<TESForm*, int> getRandomFormFromLeveledList(TESLeveledList* list, UInt
 		return std::make_pair((TESForm*)NULL, (int)0);
 	}
 	int r = rng(0, itemList.size() - 1);
-#ifdef _DEBUG
+#ifdef _DEBUG_LEVLIST
 	_MESSAGE("    %s: we are returning %s %08X x%i from the leveled list", __FUNCTION__, GetFullName(itemList[r].first), itemList[r].first->refID, itemList[r].second);
 #endif
 	return itemList[r];
@@ -374,12 +374,12 @@ bool getInventoryFromTESContainer(TESContainer* container, std::unordered_map<TE
 				break;
 			}
 			default:
-#ifdef _DEBUG
+#ifdef _DEBUG_LEVLIST
 				_MESSAGE("    Found item %s %08X x%i", GetFullName(data->type), data->type->refID, data->count);
 #endif
 				if (data->type == obrnFlag) {
 #ifdef _DEBUG
-					_MESSAGE("%s: OBRN Flag has been found for", __FUNCTION__);
+					_MESSAGE(__FUNCTION__": OBRN Flag has been found for");
 #endif
 					hasFlag = true;
 				}
@@ -396,7 +396,7 @@ bool getInventoryFromTESContainer(TESContainer* container, std::unordered_map<TE
 				break;
 			}
 		}
-		if (next == NULL) {
+		if (!next) {
 			break;
 		}
 		data = next->Info();
@@ -415,7 +415,8 @@ bool getContainerInventory(TESObjectREFR* ref, std::unordered_map<TESForm*, int>
 			auto itemEntry = it.accessNode();
 			if (!itemEntry || !itemEntry->item) {
 				//anvil jailor (be56) consistently triggers this
-				_WARNING("itemEntry or itemEntry->item is NULL for %s (%08X %s)", GetFullName(ref), ref->refID, FormTypeToString(ref->GetFormType()));
+				_WARNING("itemEntry or itemEntry->item is NULL for %s (%08X %s)", 
+					GetFullName(ref), ref->refID, FormTypeToString(ref->GetFormType()));
 				continue;
 			}
 			TESForm* item = itemEntry->item->type;
@@ -423,13 +424,13 @@ bool getContainerInventory(TESObjectREFR* ref, std::unordered_map<TESForm*, int>
 			if (item == obrnFlag) {
 				hasFlag = true;
 #ifdef _DEBUG
-				_MESSAGE("%s: OBRN Flag has been found for %s (%08X)", __FUNCTION__, GetFullName(ref), ref->refID);
+				_MESSAGE(__FUNCTION__": OBRN Flag has been found for %s (%08X)", GetFullName(ref), ref->refID);
 #endif
 				continue;
 			}
 			//_MESSAGE("Ref: %s (%08X) (base: %s %08X) : found a %s (%08X %s), quantity: %i",
 			//	GetFullName(ref), ref->refID, GetFullName(ref->baseForm), ref->baseForm->refID, GetFullName(item), item->refID, FormToString(item->GetFormType()), count);
-#ifdef _DEBUG
+#ifdef _DEBUG_LEVLIST
 			_MESSAGE("    Found item %s %08X x%u", GetFullName(item), item->refID, count);
 #endif
 			if (GetFullName(item)[0] != '<' && (addQuestItems || !isQuestOrScriptedItem(item, false))) {
@@ -459,7 +460,7 @@ bool getContainerInventory(TESObjectREFR* ref, std::unordered_map<TESForm*, int>
 
 int getPlayerLevel() {
 	TESActorBase* actorBase = OBLIVION_CAST(*g_thePlayer, PlayerCharacter, TESActorBase);
-	if (actorBase == NULL) {
+	if (!actorBase) {
 		return 0;
 	}
 	return actorBase->actorBaseData.level;
@@ -480,7 +481,9 @@ UInt8 GetModIndexShifted(const std::string& name) {
 		return id;
 	}
 	const ModEntry** activeModList = (*g_dataHandler)->GetActiveModList();
-	if (stricmp(activeModList[0]->data->name, "oblivion.esm") && activeModList[id] != NULL && stricmp(activeModList[id]->data->name, name.c_str()) == 0) {
+	if (_stricmp(activeModList[0]->data->name, "oblivion.esm") && 
+		activeModList[id] != NULL && 
+		_stricmp(activeModList[id]->data->name, name.c_str()) == 0) {
 		++id;
 	}
 	return id;

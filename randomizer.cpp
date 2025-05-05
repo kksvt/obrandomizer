@@ -13,11 +13,12 @@ std::map<UInt32, std::vector<UInt32>> allSpellsBySchool;
 std::vector<UInt32> allCreatures;
 std::vector<UInt32> allItems;
 std::vector<UInt32> allSpells;
+std::unordered_map<MagicItem*, MagicItem*> spellMapping;
 std::unordered_set<UInt32> allAdded;
 
 std::unordered_set<UInt32> allRandomized;
 
-std::list<TESObjectREFR*> toRandomize;
+std::list<TESForm*> toRandomize;
 std::map<TESObjectREFR*, UInt32> restoreFlags;
 
 TESForm* obrnFlag = NULL;
@@ -331,8 +332,10 @@ TESForm* getRandomByType(TESForm *f, bool keysAreQuestItems) {
 		case kFormType_Spell:
 		{
 			SpellItem* spell = OBLIVION_CAST(f, TESForm, SpellItem);
-			ptr = &allSpellsBySchool;
-			key = spell->GetSchool();
+			if (!spellBlacklisted(spell)) {
+				ptr = &allSpellsBySchool;
+				key = spell->GetSchool();
+			}
 			break;
 		}
 		default:
@@ -973,20 +976,59 @@ static void randomizeWorldItem(TESObjectREFR* ref, const char* function) {
 #endif
 		ref->baseForm = rando;
 		ref->Update3D();
-}
+	}
 }
 
-void randomize(TESObjectREFR* ref, const char* function) {
-	if (allRandomized.contains(ref->refID) && strcmp(function, "ESP")) {
+static void randomizeSpell(TESForm* spell, const char* function) {
+	MagicItem* magicItem = OBLIVION_CAST(spell, TESForm, MagicItem);
+	if (!magicItem) {
+		_ERROR(__FUNCTION__": could not convert spell %s (%08X %s) to MagicItem",
+			GetFullName(spell), spell->refID, FormTypeToString(spell->GetFormType()));
+		return;
+	}
+
+	TESForm* rando = getRandomBySetting(spell, config.oRandSpells, false);
+	if (!rando) {
+		return;
+	}
+
+	MagicItem* randoMagicItem = OBLIVION_CAST(rando, TESForm, MagicItem);
+	if (!randoMagicItem) {
+		_ERROR(__FUNCTION__": could not convert spell %s (%08X %s) to MagicItem",
+			GetFullName(rando), rando->refID, FormTypeToString(rando->GetFormType()));
+		return;
+	}
+
+	spellMapping.insert(std::make_pair(magicItem, randoMagicItem));
 #ifdef _DEBUG
-		_MESSAGE("%s: ref %s %08X has already been randomized.", function, GetFullName(ref), ref->refID);
+	_MESSAGE(__FUNCTION__": spell %s (%08X) has been randomized into %s (%08X).", 
+		GetFullName(spell), spell->refID, GetFullName(rando), rando->refID);
+#endif
+}
+
+void randomize(TESForm* form, const char* function) {
+	if (allRandomized.contains(form->refID) && strcmp(function, "ESP")) {
+#ifdef _DEBUG
+		_MESSAGE("%s: ref %s %08X has already been randomized.", 
+			function, GetFullName(form), form->refID);
 #endif
 		return;
 	}
-	allRandomized.insert(ref->refID);
+	allRandomized.insert(form->refID);
 #ifdef _DEBUG
-	_MESSAGE("%s: Attempting to randomize %s %08X", function, GetFullName(ref), ref->refID);
+	_MESSAGE(__FUNCTION__": Attempting to randomize %s (%08X %s)", 
+		GetFullName(form), form->refID, FormTypeToString(form->GetFormType()));
 #endif
+	if (form->GetFormType() == kFormType_Spell) {
+		randomizeSpell(form, function);
+		return;
+	}
+	TESObjectREFR* ref = OBLIVION_CAST(form, TESForm, TESObjectREFR);
+	if (!ref) {
+		_ERROR("%s: could not convert form %s (%08X %s) to a reference.",
+			function, GetFullName(form), form->refID, FormTypeToString(form->GetFormType()));
+		return;
+	}
 	if (ref->GetFormType() == kFormType_ACRE) {
 		randomizeCreature(ref, function);
 		return;

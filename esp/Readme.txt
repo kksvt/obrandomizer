@@ -37,6 +37,7 @@ v1.1.0:
 * fixed a minor bug in the oRandInventory 2 when randomizing bows and staves
 * oRandomizeAttrib and oRandomizeAttribEssential are now merged into one setting (oRandomizeAttrib; 0 - disabled, 1 - only non-essential, 2 - all)
 * removed a debug print previously displayed when re-enabling manually randomized creatures 
+* spells used by actors are now randomized during launch
 
 v1.0.5:
 * special thanks to razorblade457 for his bug reports and testing
@@ -134,7 +135,7 @@ NOTES:
 =============
 Installation
 =============
-After installing the version of xOBSE of your choice, copy the ESP files, Randomizer.cfg, RandomizerSkip.cfg and the OBSE folder from this archive into your Oblivion/Data folder (the full path depends on your installation; a sample Steam installation path could be C:\Program Files (x86)\Steam\steamapps\common\Oblivion\Data) and then activate the ESP files through Oblivion Launcher => Data Files (or a mod manager of your choice).
+After installing the version of xOBSE of your choice, copy the contents of the zip file to your Oblivion folder (the full path depends on your installation; a sample Steam installation path could be C:\Program Files (x86)\Steam\steamapps\common\Oblivion) and then activate the ESP files through Oblivion Launcher => Data Files (or a mod manager of your choice).
 NOTE: If you were previously using 0.9.1-unstable or 0.9-unstable, you should remove RandomizerAttrib.ESP, RandomizerDelay.ESP and RandomizerQuest.ESP from your Oblivion/Data folder. All functionality provided by these plugins can now be achieved through the configuration file.
 
 ===============
@@ -149,14 +150,52 @@ Uninstallation
 2) Delete obrandomizer.DLL from Oblivion/Data/OBSE/Plugins.
 3) Delete obrandomizer-gui.EXE and obrn-configs from your Oblivion folder.
 
-=============
-Configuration
-=============
-1) Randomizer.cfg allows you to configure some of the mods' features to more of your liking, creating either a somewhat normal game world or a completely broken mess (or anything in between). If you opt not to modify the configuration file, then you will get the same experience as you would with the older (0.9-unstable or 0.9.1-unstable) versions of the mod with all recommended plugin files enabled. The configuration file can be edited with any text editor (Windows's Notepad is perfectly fine for it) and every option is explained inside. If you don't feel like editing the file yourself, I've included two optional configuration files:
+===========================
+Configuration through GUI
+===========================
+As of version 1.1.0, the mod comes equipped with a GUI application to facilitate the configuration process. It requires .NET 8.0 Desktop Runtime to run, and should your computer not have it installed, it will provide you the following link to it: https://dotnet.microsoft.com/en-us/download/dotnet/8.0
 
-a) Chaos - to activate, copy the Randomizer.cfg from the Sample Configs/CHAOS folder to Oblivion/Data. As the name suggests, this configuration will make the game incredibly chaotic.
-b) Quest - to activate, copy the Randomizer.cfg from the Sample Configs/QUEST folder to Oblivion/Data. This configuration file makes minimal use of the randomizer's features, randomizing only items and creatures (and races, should you decide to use RandomizerRace files). Won't mess with NPCs' aggression, so it's perfect if you want to do try to do quests without interruptions from actors hellbent on murdering you or each other.
-The idea for the implementation of the configuration file was inspired by Ersh's and Gribbleshnibit8's LootMenu's config (which sadly is still incompatible with the Randomizer, as mentioned in Known Issues), thus I wanna credit them for it.
+======================
+Manual Configuration
+======================
+If you elect not to use the GUI, you can still configure the mod manually.
+
+1) Randomizer.cfg allows you to configure some of the mods' features to more of your liking, creating either a somewhat normal game world or a completely broken mess (or anything in between). If you opt not to modify the configuration file, then you will get the same experience as you would with the older (0.9-unstable or 0.9.1-unstable) versions of the mod with all recommended plugin files enabled. The configuration file can be edited with any text editor (Windows's Notepad is perfectly fine for it).
+
+Options:
+* oSeed - seed for the RNG system. Information about the randomization of world items, creatures not spawned from leveled lists and actor spells is not stored anywhere in the save file, meaning they will be re-randomized every time you launch the game. Using a fixed seed will allow them to be randomized into the same objects every time (provided your mod load order doesn't change), giving you a consistent experience across a single playthrough. Leave it empty if you want it to be randomized every launch.
+* oExcludeQuestItems - if set to 1, quest items won't be included in the randomization process.
+* oDelayStart - if set to 1, then the actor and inventory randomization won't kick in until the first ambush in the tutorial (Charactergen reaches stage 20).
+* oInstallCrashFix - if set to 1, it will install a patch that prevents the game from crashing when loading certain textures; if set to 2, it will install a patch that fixes reading invalid data for creatures from a save file; setting it to 3 enables both patches. If you find your save game crashing on load, try to enable either of these options (or both) and see if it helps.
+* oHitEffect - chance for each hit to apply a random effect to the victim. Possible effects: fire, frost, shock, demoralize, burden, frenzy, paralysis.
+* oRandSpells - if set to 1, each spell will be randomized into a spell of the same school; if set to 2, there will be no restriction on school when it comes to randomization.
+
+* oRandInventory - if set to 1, each item in an actor's inventory will be replaced with an item of the same type; if set to 2, actor's inventories will be randomized without restrictions.
+* oRandContainers - same as above, except for chests and other containers.
+* oWorldItems - if set to 1, every item spawned freely in the world (such as a book lying on a table) will be randomized into an item of the same type; if set to 2, they will be randomized without restrictions.
+* oAddItems - same as above, except it applies to items given through scripts.
+* oDeathItems - same as above, except it applies to items given on carrier's death (such as Dremoras receiving a Daedra Heart).
+* oRandGold - if set to 0, then gold's quantity will be randomized; if set to 1, then gold will be treated just like any other item during randomization.
+* oExcludeUnplayableItems - if set to 1, it will exclude armors marked as unplayable from the randomization process.
+
+
+* oRandomizeAttrib - if set to 1, it will randomize non-essential actors' confidence/aggression/responsibility; if set to 2, it will randomize all actors' confidence/aggression/responsibility.
+* oRestoreBaseAttributes - if set to 1, it will restore actors' confidence/aggression/responsibility to their base values. Make sure oRandomizeAttrib is set to 0, if you plan on using it.
+* oVampire - the chance for each actor to be turned into a vampire.
+* oScaleActors - if set to 1, then it will scale each actor by a value in the range of [oScaleMin, oScaleMax].
+* oScaleMin
+* ScaleMax
+
+* oRandCreatures - if set to 1, it will randomize non-leveled list creatures every launch and leveled list creatures on spawn; if set to 2, it will re-randomize all creatures on launch and savegame load. Note that 2 is a highly unstable setting and it is recommended that you don't use it.
+* oUseEssentialCreatures - if set to 1, then essential creatures will be used in the randomization process.
+* oSkipHorses - if set to 1, it will exclude horses from the randomization. It would appear that randomizing creatures from and into horses causes a great deal of problems, so it is recommended you leave it at 1.
+
+Note: setting a given option to 0 disables it.
+
+If you don't feel like editing the file yourself, I've included two optional configuration files:
+
+a) Chaos - to activate, copy the "Chaos.cfg" file from the "obrn-configs" folder to Oblivion/Data and rename it to "Randomizer.cfg". As the name suggests, this configuration will make the game incredibly chaotic.
+b) Quest - to activate, copy the "Quest.cfg" file from the "obrn-configs" folder to Oblivion/Data and rename it to "Randomizer.cfg". This configuration file makes minimal use of the randomizer's features, randomizing only items and creatures (and races, should you decide to use RandomizerRace files). Won't mess with NPCs' aggression, so it's perfect if you want to do try to do quests without interruptions from actors hellbent on murdering you or each other.
 
 2) RandomizerSkip.cfg determines which plugin files will be skipped when generating randomizer's lists and which plugin files will be excluded from being randomized. There are two sections - [DON'T ADD TO LISTS] and [DON'T RANDOMIZE]. 
 
@@ -198,6 +237,9 @@ A: It should be!
 Q: I want my modded items to be included in the randomization process. How do I do that?
 A: As of v1.0.0, you do not have to do anything.
 
+Q: The plugin file and/or the GUI application gets flagged by my antivirus. What do I do?
+A: During my testing, some antiviruses flagged this mod and the GUI as malicious, but I can guarantee you that these are false positives. If you don't believe me, you're welcome to compile the mod and the GUI yourself, as they are both open-source on my github.
+
 Q: Can I make changes to your mod and release it?
 A: Sure! You're welcome to alter it in any way you'd like, however I'd ask you to credit me, should you decide to publish your work.
 
@@ -221,13 +263,6 @@ In the Tutorial section, right after the first ambush, two rats are supposed to 
 
 6. oRandCreatures set to 2 might sometimes cause the game to crash when reloading a save
 It's not that big of a deal, since you will be able to properly load your desired save after launching the game again. Having said that, oRandCreatures set to 2 is not a recommended setting.
-
-=======================================
-Technical aspects / potential issues
-=======================================
-Keep in mind that my methods most likely leave a lot to be desired, as it's my first "real" mod. I had to learn both the Construction Set and Oblivion's scripting language practically from the scratch, and there are several things that may or may not cause problems:
-
-1. Race randomization adds duplicate races, with the only distinction being their voice. CopyRace does not preserve the original race's voice, which causes NPCs with unique lines to be unvoiced. Therefore I had to manually copy each race and adjust their voice (for example ArgonianBreton has all the characteristics of an Argonian, save the tail, but uses the Breton voice). The duplicate races have to be marked as playable after exiting the player creation, otherwise their rumors and generic dialogue will be unvoiced. I do not know a way around that.
 
 ==========================
 OBSE Plugin Source Code
