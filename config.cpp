@@ -24,6 +24,7 @@ const OblivionCfgFieldsOffset lootFields[] = {
 
 const OblivionCfgFieldsOffset actorFields[] = {
 	OBLIVIONCFGFIELD(oRandomizeAttrib, FV_SINT8),
+	OBLIVIONCFGFIELD(oRandomizeStats, FV_BOOL),
 	OBLIVIONCFGFIELD(oRestoreBaseAttributes, FV_BOOL),
 	OBLIVIONCFGFIELD(oVampire, FV_SINT8),
 	OBLIVIONCFGFIELD(oScaleActors, FV_BOOL),
@@ -102,6 +103,7 @@ OblivionCfg::OblivionCfg() {
 	oExcludeUnplayableItems = false;
 
 	oRandomizeAttrib = 1;
+	oRandomizeStats = false;
 	oRestoreBaseAttributes = false;
 	oVampire = 10;
 	oScaleActors = false;
@@ -228,6 +230,7 @@ bool OblivionCfg::ReadCfgFromFile(const char* name) {
 	_MESSAGE("  Randomize actor attributes: %s", 
 		!oRandomizeAttrib ? "no" :
 		oRandomizeAttrib == 1 ? "yes, for non-essential" : "yes, for all");
+	_MESSAGE("   and basic attributes: %s", oRandomizeStats ? "yes" : "no");
 	_MESSAGE("  Restore base attributes: %s", oRestoreBaseAttributes ? "yes" : "no");
 	_MESSAGE("  Vampire Chance: %i%%", oVampire);
 	_MESSAGE("  Scale actors: %s", oScaleActors ? "yes" : "no");

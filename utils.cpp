@@ -498,3 +498,9 @@ bool spellBlacklisted(SpellItem* spell) {
 		return false;
 	}
 }
+
+void ForceActorValue(Actor* actor, UInt32 av, SInt32 value) {
+	//Mod(value) = GetActorValue + value
+	//Mod(value - GetActorValue) = value
+	actor->ApplyScriptAVMod(av, value - actor->GetActorValue(av), NULL);
+}

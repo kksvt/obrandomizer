@@ -55,6 +55,7 @@ public:
 
 	//[Actor]
 	SInt8 oRandomizeAttrib;
+	bool oRandomizeStats;
 	bool oRestoreBaseAttributes;
 	SInt8 oVampire;
 	bool oScaleActors;

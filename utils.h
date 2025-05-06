@@ -102,6 +102,7 @@ bool getContainerInventory(TESObjectREFR* ref, std::unordered_map<TESForm*, int>
 int getPlayerLevel();
 int getRefLevelAdjusted(TESObjectREFR* ref);
 bool spellBlacklisted(SpellItem* spell);
+void ForceActorValue(Actor* actor, UInt32 av, SInt32 value);
 
 UInt8 GetModIndexShifted(const std::string& name);
 

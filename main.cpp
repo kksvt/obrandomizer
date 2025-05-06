@@ -505,6 +505,15 @@ bool Cmd_OBRNGetSetting_Execute(COMMAND_ARGS) {
 	return true;
 }
 
+bool Cmd_OBRNAlterActorStats_Execute(COMMAND_ARGS) {
+	Actor* actor = NULL;
+	*result = 0.0;
+	if (ExtractArgsEx(paramInfo, arg1, opcodeOffsetPtr, scriptObj, eventList, &actor)) {
+		alterActorStats(actor, !config.oRandomizeStats, config.oRestoreBaseAttributes);
+	}
+	return true;
+}
+
 #endif
 /**************************
 * Command definitions
@@ -512,6 +521,7 @@ bool Cmd_OBRNGetSetting_Execute(COMMAND_ARGS) {
 DEFINE_COMMAND_PLUGIN(OBRNRandomize, "Randomizes the passed object", 0, 1, kParams_OneObjectRef);
 DEFINE_COMMAND_PLUGIN(OBRNListsReady, "Returns 1 if the lists are prepared", 0, 0, {});
 DEFINE_COMMAND_PLUGIN(OBRNGetSetting, "Returns the value for a specified config setting", 0, 1, kParams_OneString);
+DEFINE_COMMAND_PLUGIN(OBRNAlterActorStats, "Randomizes the passed actor's attributes and stats, or restores them to base values if oRestoreBaseAttributes is enabled.", 0, 1, kParams_OneActorRef);
 
 extern "C" {
 
@@ -596,6 +606,7 @@ bool OBSEPlugin_Load(const OBSEInterface * obse)
 	obse->RegisterCommand(&kCommandInfo_OBRNRandomize);
 	obse->RegisterCommand(&kCommandInfo_OBRNListsReady);
 	obse->RegisterCommand(&kCommandInfo_OBRNGetSetting);
+	obse->RegisterCommand(&kCommandInfo_OBRNAlterActorStats);
 
 	// set up serialization callbacks when running in the runtime
 	if(!obse->isEditor)

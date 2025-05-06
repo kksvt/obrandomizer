@@ -33,11 +33,13 @@ v1.1.0:
 * added a GUI application to facilitate config creation
 * added oExcludeUnplayableItems - if it's set to 1, then armors marked as unplayable won't take part in the randomization
 * added a fixed seed option (oSeed). Leave it empty to have a random seed every launch
+* added oRandomizeStats - if it's set to 1, it will randomize basic attributes (strength, dexterity...) and skills (blade, blunt...)
 * oRandContainers now has three options (0 - disabled, 1 - randomize every item into an item of the same time, 2 - randomize every item without restrictions) and is separate from actors' oRandInventory
 * fixed a minor bug in the oRandInventory 2 when randomizing bows and staves
 * oRandomizeAttrib and oRandomizeAttribEssential are now merged into one setting (oRandomizeAttrib; 0 - disabled, 1 - only non-essential, 2 - all)
 * removed a debug print previously displayed when re-enabling manually randomized creatures 
-* spells used by actors are now randomized during launch
+* spells used by actors are now randomized on launch
+* fixed randomized creatures' aggression adjustment
 
 v1.0.5:
 * special thanks to razorblade457 for his bug reports and testing
@@ -180,11 +182,12 @@ Options:
 
 
 * oRandomizeAttrib - if set to 1, it will randomize non-essential actors' confidence/aggression/responsibility; if set to 2, it will randomize all actors' confidence/aggression/responsibility.
+* oRandomizeStats - if set to 1, it will randomize basic attributes (strength, dexterity, etc) and skills (blade, blunt, etc) alongside the attributes mentioned above.
 * oRestoreBaseAttributes - if set to 1, it will restore actors' confidence/aggression/responsibility to their base values. Make sure oRandomizeAttrib is set to 0, if you plan on using it.
 * oVampire - the chance for each actor to be turned into a vampire.
 * oScaleActors - if set to 1, then it will scale each actor by a value in the range of [oScaleMin, oScaleMax].
-* oScaleMin
-* ScaleMax
+* oScaleMin - refer to oScaleActors.
+* oScaleMax - refer to oScaleActors.
 
 * oRandCreatures - if set to 1, it will randomize non-leveled list creatures every launch and leveled list creatures on spawn; if set to 2, it will re-randomize all creatures on launch and savegame load. Note that 2 is a highly unstable setting and it is recommended that you don't use it.
 * oUseEssentialCreatures - if set to 1, then essential creatures will be used in the randomization process.

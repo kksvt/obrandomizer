@@ -954,7 +954,7 @@ static void randomizeCreature(TESObjectREFR* ref, const char* function) {
 	//TESActorBase* actorBase = OBLIVION_CAST(rando, TESForm, TESActorBase);
 	ref->baseForm = rando;
 	ref->SetTemplateForm(oldBaseForm);
-	actor->SetActorValue(kActorVal_Aggression, aggression);
+	ForceActorValue(actor, kActorVal_Aggression, aggression);
 	for (const auto& it : keepItems) {
 		TESForm* item = it.first;
 		int cnt = it.second;
@@ -982,8 +982,8 @@ static void randomizeWorldItem(TESObjectREFR* ref, const char* function) {
 static void randomizeSpell(TESForm* spell, const char* function) {
 	MagicItem* magicItem = OBLIVION_CAST(spell, TESForm, MagicItem);
 	if (!magicItem) {
-		_ERROR(__FUNCTION__": could not convert spell %s (%08X %s) to MagicItem",
-			GetFullName(spell), spell->refID, FormTypeToString(spell->GetFormType()));
+		_ERROR("%s: could not convert spell %s (%08X %s) to MagicItem",
+			function, GetFullName(spell), spell->refID, FormTypeToString(spell->GetFormType()));
 		return;
 	}
 
@@ -994,15 +994,15 @@ static void randomizeSpell(TESForm* spell, const char* function) {
 
 	MagicItem* randoMagicItem = OBLIVION_CAST(rando, TESForm, MagicItem);
 	if (!randoMagicItem) {
-		_ERROR(__FUNCTION__": could not convert spell %s (%08X %s) to MagicItem",
-			GetFullName(rando), rando->refID, FormTypeToString(rando->GetFormType()));
+		_ERROR("%s: could not convert spell %s (%08X %s) to MagicItem",
+			function, GetFullName(rando), rando->refID, FormTypeToString(rando->GetFormType()));
 		return;
 	}
 
 	spellMapping.insert(std::make_pair(magicItem, randoMagicItem));
 #ifdef _DEBUG
-	_MESSAGE(__FUNCTION__": spell %s (%08X) has been randomized into %s (%08X).", 
-		GetFullName(spell), spell->refID, GetFullName(rando), rando->refID);
+	_MESSAGE("%s: spell %s (%08X) has been randomized into %s (%08X).", 
+		function, GetFullName(spell), spell->refID, GetFullName(rando), rando->refID);
 #endif
 }
 
@@ -1038,4 +1038,17 @@ void randomize(TESForm* form, const char* function) {
 		return;
 	}
 	randomizeInventory(ref);
+}
+
+void alterActorStats(Actor* actor, bool onlyActorAttributes, bool restore) {
+	for (UInt32 av = onlyActorAttributes ? kActorVal_Aggression : kActorVal_Strength; av <= kActorVal_Responsibility; ++av) {
+		//best not touch it
+		if (av == kActorVal_Energy ||
+			av == kActorVal_Health ||
+			av == kActorVal_Magicka ||
+			av == kActorVal_Fatigue ||
+			av == kActorVal_Encumbrance)
+			continue;
+		ForceActorValue(actor, av, restore ? actor->GetBaseActorValue(av) : rng(1, 100));
+	}
 }
