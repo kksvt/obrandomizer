@@ -507,21 +507,31 @@ bool Cmd_OBRNGetSetting_Execute(COMMAND_ARGS) {
 
 bool Cmd_OBRNAlterActorStats_Execute(COMMAND_ARGS) {
 	Actor* actor = NULL;
+	int option = 0;
 	*result = 0.0;
-	if (ExtractArgsEx(paramInfo, arg1, opcodeOffsetPtr, scriptObj, eventList, &actor)) {
-		alterActorStats(actor, !config.oRandomizeStats, config.oRestoreBaseAttributes);
+	if (ExtractArgsEx(paramInfo, arg1, opcodeOffsetPtr, scriptObj, eventList, &actor, &option)) {
+		alterActorStats(actor, option, config.oRestoreBaseAttributes);
 	}
 	return true;
 }
 
 #endif
+
+static ParamInfo kParams_OneActorRef_OneInt[] =
+{
+	{	"actor reference",	kParamType_Actor,	0	},
+	{   "option", kParamType_Integer, 0},
+};
+
 /**************************
 * Command definitions
 **************************/
 DEFINE_COMMAND_PLUGIN(OBRNRandomize, "Randomizes the passed object", 0, 1, kParams_OneObjectRef);
 DEFINE_COMMAND_PLUGIN(OBRNListsReady, "Returns 1 if the lists are prepared", 0, 0, {});
 DEFINE_COMMAND_PLUGIN(OBRNGetSetting, "Returns the value for a specified config setting", 0, 1, kParams_OneString);
-DEFINE_COMMAND_PLUGIN(OBRNAlterActorStats, "Randomizes the passed actor's attributes and stats, or restores them to base values if oRestoreBaseAttributes is enabled.", 0, 1, kParams_OneActorRef);
+DEFINE_COMMAND_PLUGIN(OBRNAlterActorStats, "Randomizes the passed actor's attributes (second argument = 0) or stats (second argument = 1), or restores them all to base values if oRestoreBaseAttributes is enabled.",
+	0, 2, kParams_OneActorRef_OneInt
+);
 
 extern "C" {
 

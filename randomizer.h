@@ -28,7 +28,7 @@ void fillUpClothingRanges();
 void fillUpWpRanges();
 void addOrAppend(ItemMapPtr map, const UInt32 key, UInt32 value);
 void randomize(TESForm* form, const char* function);
-void alterActorStats(Actor* actor, bool onlyActorAttributes, bool restore);
+void alterActorStats(Actor* actor, bool stats, bool restore);
 bool tryToAddForm(TESForm* f);
 TESForm* getRandomByType(TESForm* f, bool keysAreQuestItems);
 TESForm* getRandomBySetting(TESForm* f, int option, bool keysAreQuestItems);

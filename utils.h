@@ -13,6 +13,8 @@
 #define ITEM_REPAIRHAMMER 0x0000000C
 #define ITEM_LOCKPICK 0x0000000A
 
+#define ACTOR_LUCIENLACHANCE 0x00224ED
+
 struct LevListResult_t {
 	struct LevListData_t {
 		UInt32 count;

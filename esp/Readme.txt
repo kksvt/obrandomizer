@@ -3,7 +3,7 @@ Information
 =============
 Name: Oblivion Randomizer Mod
 Author: lost cause / brndd
-Date: May ? 2025
+Date: May 12 2025
 Version: 1.1.0
 
 =============
@@ -33,7 +33,7 @@ v1.1.0:
 * added a GUI application to facilitate config creation
 * added oExcludeUnplayableItems - if it's set to 1, then armors marked as unplayable won't take part in the randomization
 * added a fixed seed option (oSeed). Leave it empty to have a random seed every launch
-* added oRandomizeStats - if it's set to 1, it will randomize basic attributes (strength, dexterity...) and skills (blade, blunt...)
+* added oRandomizeStats - if it's set to 1, it will randomize non-essential actors' basic attributes (strength, dexterity...) and skills (blade, blunt...); 2 will aslo randomize essential actors
 * oRandContainers now has three options (0 - disabled, 1 - randomize every item into an item of the same time, 2 - randomize every item without restrictions) and is separate from actors' oRandInventory
 * fixed a minor bug in the oRandInventory 2 when randomizing bows and staves
 * oRandomizeAttrib and oRandomizeAttribEssential are now merged into one setting (oRandomizeAttrib; 0 - disabled, 1 - only non-essential, 2 - all)
@@ -180,9 +180,8 @@ Options:
 * oRandGold - if set to 0, then gold's quantity will be randomized; if set to 1, then gold will be treated just like any other item during randomization.
 * oExcludeUnplayableItems - if set to 1, it will exclude armors marked as unplayable from the randomization process.
 
-
 * oRandomizeAttrib - if set to 1, it will randomize non-essential actors' confidence/aggression/responsibility; if set to 2, it will randomize all actors' confidence/aggression/responsibility.
-* oRandomizeStats - if set to 1, it will randomize basic attributes (strength, dexterity, etc) and skills (blade, blunt, etc) alongside the attributes mentioned above.
+* oRandomizeStats - if set to 1, it will randomize non-essential actors' basic attributes (strength, dexterity, etc) and skills (blade, blunt, etc); if set to 2, it will randomize these stats for all actors.
 * oRestoreBaseAttributes - if set to 1, it will restore actors' confidence/aggression/responsibility to their base values. Make sure oRandomizeAttrib is set to 0, if you plan on using it.
 * oVampire - the chance for each actor to be turned into a vampire.
 * oScaleActors - if set to 1, then it will scale each actor by a value in the range of [oScaleMin, oScaleMax].
