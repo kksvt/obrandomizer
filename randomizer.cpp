@@ -1040,81 +1040,6 @@ void randomize(TESForm* form, const char* function) {
 	randomizeInventory(ref);
 }
 
-static const char* avToString[] = {
-	TESFORM2STRING(kActorVal_Strength),
-	TESFORM2STRING(kActorVal_Intelligence),
-	TESFORM2STRING(kActorVal_Willpower),
-	TESFORM2STRING(kActorVal_Agility),
-	TESFORM2STRING(kActorVal_Speed),
-	TESFORM2STRING(kActorVal_Endurance),
-	TESFORM2STRING(kActorVal_Personality),
-	TESFORM2STRING(kActorVal_Luck),
-	TESFORM2STRING(kActorVal_Health),
-	TESFORM2STRING(kActorVal_Magicka),
-	TESFORM2STRING(kActorVal_Fatigue),
-	TESFORM2STRING(kActorVal_Encumbrance),
-	TESFORM2STRING(kActorVal_Armorer),
-	TESFORM2STRING(kActorVal_Athletics),
-	TESFORM2STRING(kActorVal_Blade),
-	TESFORM2STRING(kActorVal_Block),
-	TESFORM2STRING(kActorVal_Blunt),
-	TESFORM2STRING(kActorVal_HandToHand),
-	TESFORM2STRING(kActorVal_HeavyArmor),
-	TESFORM2STRING(kActorVal_Alchemy),
-	TESFORM2STRING(kActorVal_Alteration),
-	TESFORM2STRING(kActorVal_Conjuration),
-	TESFORM2STRING(kActorVal_Destruction),
-	TESFORM2STRING(kActorVal_Illusion),
-	TESFORM2STRING(kActorVal_Mysticism),
-	TESFORM2STRING(kActorVal_Restoration),
-	TESFORM2STRING(kActorVal_Acrobatics),
-	TESFORM2STRING(kActorVal_LightArmor),
-	TESFORM2STRING(kActorVal_Marksman),
-	TESFORM2STRING(kActorVal_Mercantile),
-	TESFORM2STRING(kActorVal_Security),
-	TESFORM2STRING(kActorVal_Sneak),
-	TESFORM2STRING(kActorVal_Speechcraft),
-	TESFORM2STRING(kActorVal_Aggression),
-	TESFORM2STRING(kActorVal_Confidence),
-	TESFORM2STRING(kActorVal_Energy),
-	TESFORM2STRING(kActorVal_Responsibility),
-	TESFORM2STRING(kActorVal_Bounty),
-	TESFORM2STRING(kActorVal_Fame),
-	TESFORM2STRING(kActorVal_Infamy),
-	TESFORM2STRING(kActorVal_MagickaMultiplier),
-	TESFORM2STRING(kActorVal_NightEyeBonus),
-	TESFORM2STRING(kActorVal_AttackBonus),
-	TESFORM2STRING(kActorVal_DefendBonus),
-	TESFORM2STRING(kActorVal_CastingPenalty),
-	TESFORM2STRING(kActorVal_Blindness),
-	TESFORM2STRING(kActorVal_Chameleon),
-	TESFORM2STRING(kActorVal_Invisibility),
-	TESFORM2STRING(kActorVal_Paralysis),
-	TESFORM2STRING(kActorVal_Silence),
-	TESFORM2STRING(kActorVal_Confusion),
-	TESFORM2STRING(kActorVal_DetectItemRange),
-	TESFORM2STRING(kActorVal_SpellAbsorbChance),
-	TESFORM2STRING(kActorVal_SpellReflectChance),
-	TESFORM2STRING(kActorVal_SwimSpeedMultiplier),
-	TESFORM2STRING(kActorVal_WaterBreathing),
-	TESFORM2STRING(kActorVal_WaterWalking),
-	TESFORM2STRING(kActorVal_StuntedMagicka),
-	TESFORM2STRING(kActorVal_DetectLifeRange),
-	TESFORM2STRING(kActorVal_ReflectDamage),
-	TESFORM2STRING(kActorVal_Telekinesis),
-	TESFORM2STRING(kActorVal_ResistFire),
-	TESFORM2STRING(kActorVal_ResistFrost),
-	TESFORM2STRING(kActorVal_ResistDisease),
-	TESFORM2STRING(kActorVal_ResistMagic),
-	TESFORM2STRING(kActorVal_ResistNormalWeapons),
-	TESFORM2STRING(kActorVal_ResistParalysis),
-	TESFORM2STRING(kActorVal_ResistPoison),
-	TESFORM2STRING(kActorVal_ResistShock),
-	TESFORM2STRING(kActorVal_Vampirism),
-	TESFORM2STRING(kActorVal_Darkness),
-	TESFORM2STRING(kActorVal_ResistWaterDamage)
-};
-
 void alterActorStats(Actor* actor, bool stats, bool restore) {
 	UInt32 start, end;
 	if (restore) {
@@ -1129,10 +1054,6 @@ void alterActorStats(Actor* actor, bool stats, bool restore) {
 		start = kActorVal_Aggression;
 		end = kActorVal_Responsibility;
 	}
-	FILE* f = fopen("alterstats.txt", "a");
-	fprintf(f, "Actor: %s (%08X), stats: %s, restore: %s\n", 
-		GetFullName(actor), actor->refID, stats ? "yes" : "no",
-		restore ? "yes" : "no");
 	for (UInt32 av = start; av <= end; ++av) {
 		//best not touch these
 		if (av == kActorVal_Energy ||
@@ -1142,7 +1063,5 @@ void alterActorStats(Actor* actor, bool stats, bool restore) {
 			av == kActorVal_Encumbrance)
 			continue;
 		ForceActorValue(actor, av, restore ? actor->GetBaseActorValue(av) : rng(1, 100));
-		fprintf(f, "%s av %s\n", restore ? "Restoring" : "Randomizing", avToString[av]);
 	}
-	fclose(f);
 }
