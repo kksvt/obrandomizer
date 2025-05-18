@@ -13,13 +13,14 @@ extern std::map<UInt32, std::vector<UInt32>> allSpellsBySchool;
 extern std::vector<UInt32> allCreatures;
 extern std::vector<UInt32> allItems;
 extern std::vector<UInt32> allSpells;
-extern std::unordered_map<MagicItem*, MagicItem*> spellMapping;;
+extern std::unordered_map<MagicItem*, MagicItem*> spellMapping;
 extern std::unordered_set<UInt32> allAdded;
-
-extern std::unordered_set<UInt32> allRandomized;
 
 extern std::list<TESForm*> toRandomize;
 extern std::map<TESObjectREFR*, UInt32> restoreFlags;
+
+extern std::set<UInt32> restoredInventories;
+extern std::unordered_map<UInt32, UInt32> allRandomized;
 
 extern bool files_read;
 extern TESForm* obrnFlag;
@@ -33,3 +34,4 @@ bool tryToAddForm(TESForm* f);
 TESForm* getRandomByType(TESForm* f, bool keysAreQuestItems);
 TESForm* getRandomBySetting(TESForm* f, int option, bool keysAreQuestItems);
 void logDetailedListInfo();
+bool restoreCreatureInventory(TESObjectREFR* ref);

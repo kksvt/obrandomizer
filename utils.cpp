@@ -354,47 +354,72 @@ bool getInventoryFromTESContainer(TESContainer* container, std::unordered_map<TE
 	auto next = container->list.Next();
 	while (data != NULL) {
 		if (data->type != NULL) {
-			switch (data->type->GetFormType()) {
-			case kFormType_LeveledItem:
-			{
-				TESLevItem* lev = OBLIVION_CAST(data->type, TESForm, TESLevItem);
-				auto it = getRandomFormFromLeveledList(&lev->leveledList, flag);
-				if (it.first != NULL) {
-					itemList.insert(it);
-				}
-				break;
-			}
-			case kFormType_LeveledSpell:
-			{
-				TESLevSpell* lev = OBLIVION_CAST(data->type, TESForm, TESLevSpell);
-				auto it = getRandomFormFromLeveledList(&lev->leveledList, flag);
-				if (it.first != NULL) {
-					itemList.insert(it);
-				}
-				break;
-			}
-			default:
+			//when reloading a save, container->type changes to 0 and data->type becomes refid
+			//so, for whatever reason, its actually a union of TESForm* form and UInt32 refID
+			//i have no idea why thats the case, but we are going to roll with it
+			//...problem is that certain objects (leveled lists? perhaps something else as well)
+			//dont yet exist, so LookupFormByID returns NULL. does it apply only to non-master files?
+			TESForm* item = NULL;
+			if (!container->type) {
 #ifdef _DEBUG_LEVLIST
-				_MESSAGE("    Found item %s %08X x%i", GetFullName(data->type), data->type->refID, data->count);
+				_MESSAGE("?!: data->type is refID: %08X", data->type);
 #endif
-				if (data->type == obrnFlag) {
-#ifdef _DEBUG
-					_MESSAGE(__FUNCTION__": OBRN Flag has been found for");
-#endif
-					hasFlag = true;
-				}
-				else if (!isQuestOrScriptedItem(data->type, false) || addQuestItems) {
-					auto it = itemList.find(data->type);
-					int count = std::max((SInt32)1, data->count);
-					if (it == itemList.end()) {
-						itemList.insert(std::make_pair(data->type, count));
-					}
-					else if (!(flag & ItemRetrieval::noAccumulation)) {
-						it->second += count;
-					}
-				}
-				break;
+				item = LookupFormByID((UInt32)data->type);
 			}
+			else {
+#ifdef _DEBUG_LEVLIST
+				_MESSAGE("...data->type should not be refID: %08X", data->type);
+#endif
+				item = data->type;
+			}
+			if (item) {
+				switch (item->GetFormType()) {
+				case kFormType_LeveledItem:
+				{
+					TESLevItem* lev = OBLIVION_CAST(item, TESForm, TESLevItem);
+					auto it = getRandomFormFromLeveledList(&lev->leveledList, flag);
+					if (it.first != NULL) {
+						itemList.insert(it);
+					}
+					break;
+				}
+				case kFormType_LeveledSpell:
+				{
+					TESLevSpell* lev = OBLIVION_CAST(item, TESForm, TESLevSpell);
+					auto it = getRandomFormFromLeveledList(&lev->leveledList, flag);
+					if (it.first != NULL) {
+						itemList.insert(it);
+					}
+					break;
+				}
+				default:
+#ifdef _DEBUG_LEVLIST
+					_MESSAGE("    Found item %s %08X x%i", GetFullName(item), item->refID, data->count);
+#endif
+					if (item == obrnFlag) {
+#ifdef _DEBUG
+						_MESSAGE(__FUNCTION__": OBRN Flag has been found");
+#endif
+						hasFlag = true;
+					}
+					else if (!isQuestOrScriptedItem(item, false) || addQuestItems) {
+						auto it = itemList.find(item);
+						int count = std::max((SInt32)1, data->count);
+						if (it == itemList.end()) {
+							itemList.insert(std::make_pair(item, count));
+						}
+						else if (!(flag & ItemRetrieval::noAccumulation)) {
+							it->second += count;
+						}
+					}
+					break;
+				}
+			}
+#ifdef _DEBUG_LEVLIST
+			else {
+				_MESSAGE("...not valid...");
+			}
+#endif
 		}
 		if (!next) {
 			break;

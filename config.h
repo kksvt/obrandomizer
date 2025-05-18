@@ -24,6 +24,7 @@ struct OblivionCfgSection {
 class OblivionCfg {
 private:
 	bool oSeedRead;
+	char seedFile[256];
 public:
 	OblivionCfg();
 	bool ReadCfgFromFile(const char* name);
@@ -36,8 +37,11 @@ public:
 		return *(T*)((SInt32)this + offset);
 	}
 	OblivionCfgValueType GetSettingType(const char* name, SInt32* offset);
+	bool InitSeedRandomizationData(std::unordered_map<UInt32, UInt32>& allRandomized);
+	bool WriteSeedRandomizationData(UInt32 from, UInt32 to);
 	//[Misc]
 	UInt32 oSeed;
+	bool oSaveSeedData;
 	bool oExcludeQuestItems;
 	bool oDelayStart;
 	SInt8 oInstallCrashFix;

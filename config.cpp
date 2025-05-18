@@ -3,6 +3,7 @@
 
 const OblivionCfgFieldsOffset miscFields[] = {
 	OBLIVIONCFGFIELD(oSeed, FV_UINT),
+	OBLIVIONCFGFIELD(oSaveSeedData, FV_BOOL),
 	OBLIVIONCFGFIELD(oExcludeQuestItems, FV_BOOL),
 	OBLIVIONCFGFIELD(oDelayStart, FV_BOOL),
 	OBLIVIONCFGFIELD(oInstallCrashFix, FV_SINT8),
@@ -86,6 +87,7 @@ static const char* settingToHumanString(int setting) {
 
 OblivionCfg::OblivionCfg() {
 	oSeed = 0;
+	oSaveSeedData = false;
 	oSeedRead = false;
 
 	oExcludeQuestItems = true;
@@ -113,6 +115,8 @@ OblivionCfg::OblivionCfg() {
 	oRandCreatures = 1;
 	oUseEssentialCreatures = false;
 	oSkipHorses = true;
+
+	seedFile[0] = 0;
 
 	randId = 0xFF;
 	for (int i = 0; i < 0xFF; ++i) {
@@ -213,6 +217,7 @@ bool OblivionCfg::ReadCfgFromFile(const char* name) {
 	}
 	else {
 		_MESSAGE("  Seed: %u (0x%08X)", oSeed, oSeed);
+		_MESSAGE("  Save seed data: %s", oSaveSeedData ? "yes" : "no");
 	}
 	_MESSAGE("  Exclude quest items: %s", oExcludeQuestItems ? "yes" : "no");
 	_MESSAGE("  Delay start: %s", oDelayStart ? "yes" : "no");
@@ -303,4 +308,58 @@ OblivionCfgValueType OblivionCfg::GetSettingType(const char* name, SInt32* offse
 		}
 	}
 	return FV_NONE;
+}
+
+bool OblivionCfg::InitSeedRandomizationData(std::unordered_map<UInt32, UInt32>& allRandomized)
+{
+	if (!HasSeed() || !oSaveSeedData) {
+		return false;
+	}
+	if (!seedFile[0]) {
+		CreateDirectory("obrn-seed-data", NULL);
+		sprintf_s(seedFile, "obrn-seed-data/%u.bin", oSeed);
+	}
+	_MESSAGE(__FUNCTION__": attemping to read data file %s", seedFile);
+	allRandomized.clear();
+	FILE* f = fopen(seedFile, "rb");
+	if (!f) {
+		_MESSAGE("...but it does not exist.");
+		return false;
+	}
+	UInt32 data[2];
+	size_t cnt;
+	while ((cnt = fread(data, sizeof(UInt32), 2, f)) == 2) {
+		//check if the new item exists
+		if (!LookupFormByID(data[1])) {
+			_ERROR("...new form %08X does not exist, skipping...", data[1]);
+			continue;
+		}
+		allRandomized.insert(std::make_pair(data[0], data[1]));
+	}
+	fclose(f);
+	if (cnt != 0) {
+		_ERROR("...unexpected end of file, read only %i record(s). Expected: 2.", cnt);
+		return false;
+	}
+	_MESSAGE("...success.");
+	return true;
+}
+
+bool OblivionCfg::WriteSeedRandomizationData(UInt32 from, UInt32 to)
+{
+	if (!HasSeed() || !oSaveSeedData) {
+		return false;
+	}
+	if (!seedFile[0]) {
+		sprintf_s(seedFile, "obrn-seed-data/%u.bin", oSeed);
+	}
+	FILE* f = fopen(seedFile, "ab");
+	if (!f) {
+		_ERROR(__FUNCTION__": could not open binary file %s for writing.", seedFile);
+		return false;
+	}
+	fwrite(&from, sizeof(from), 1, f);
+	fwrite(&to, sizeof(to), 1, f);
+	fclose(f);
+	return true;
 }

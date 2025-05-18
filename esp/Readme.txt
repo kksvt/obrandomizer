@@ -3,7 +3,7 @@ Information
 =============
 Name: Oblivion Randomizer Mod
 Author: lost cause / brndd
-Date: May 12 2025
+Date: May 19 2025
 Version: 1.1.0
 
 =============
@@ -33,13 +33,16 @@ v1.1.0:
 * added a GUI application to facilitate config creation
 * added oExcludeUnplayableItems - if it's set to 1, then armors marked as unplayable won't take part in the randomization
 * added a fixed seed option (oSeed). Leave it empty to have a random seed every launch
-* added oRandomizeStats - if it's set to 1, it will randomize non-essential actors' basic attributes (strength, dexterity...) and skills (blade, blunt...); 2 will aslo randomize essential actors
+* added an experimental option to save and load seed randomization data (oSaveSeedData). Requires oSeed to be non-empty
+* added oRandomizeStats - if it's set to 1, it will randomize non-essential actors' basic attributes (strength, dexterity...) and skills (blade, blunt...); 2 will also randomize essential actors
 * oRandContainers now has three options (0 - disabled, 1 - randomize every item into an item of the same time, 2 - randomize every item without restrictions) and is separate from actors' oRandInventory
 * fixed a minor bug in the oRandInventory 2 when randomizing bows and staves
 * oRandomizeAttrib and oRandomizeAttribEssential are now merged into one setting (oRandomizeAttrib; 0 - disabled, 1 - only non-essential, 2 - all)
 * removed a debug print previously displayed when re-enabling manually randomized creatures 
 * spells used by actors are now randomized on launch
-* fixed randomized creatures' aggression adjustment
+* tweaked randomized creatures' aggression adjustment
+* fixed a bug with randomizing creatures when loading a different save within the same session
+* newly randomized creatures will now retain their weapons
 
 v1.0.5:
 * special thanks to razorblade457 for his bug reports and testing
@@ -126,9 +129,9 @@ WARNING: The 1.0.0 version has been tested on the Steam version of Oblivion. The
 ESP Files
 =============
 This mod contains 3 ESP files (Randomizer.ESP needs to be loaded first)
-* Randomizer.ESP		[REQUIRED] 		- the basic randomizer file
-* RandomizerRace.ESP		[NOT RECOMMENDED] 	- randomizes the actors' races; it's fun albeit also extremely glitchy and greatly lowers the stability (use this if you don't want actors randomized into Golden Saints and Dark Seducers or if you do not own the Shivering Isles DLC)
-* RandomizerRaceSI.ESP		[NOT RECOMMENDED]	- same as above, except it also uses SI races
+* Randomizer.ESP       [REQUIRED]           - the basic randomizer file
+* RandomizerRace.ESP   [NOT RECOMMENDED]    - randomizes the actors' races; it's fun albeit also extremely glitchy and greatly lowers the stability (use this if you don't want actors randomized into Golden Saints and Dark Seducers or if you do not own the Shivering Isles DLC)
+* RandomizerRaceSI.ESP [NOT RECOMMENDED]    - same as above, except it also uses SI races
 
 NOTES: 
 1) If you want race randomization, use either RandomizerRace.ESP or RandomizerRaceSI.ESP, not both.
@@ -150,7 +153,7 @@ Uninstallation
 * Randomizer.CFG
 * RandomizerSkip.CFG
 2) Delete obrandomizer.DLL from Oblivion/Data/OBSE/Plugins.
-3) Delete obrandomizer-gui.EXE and obrn-configs from your Oblivion folder.
+3) Delete obrandomizer-gui.EXE, obrn-configs and obrn-seed-data (should it exist) from your Oblivion folder.
 
 ===========================
 Configuration through GUI
@@ -165,7 +168,13 @@ If you elect not to use the GUI, you can still configure the mod manually.
 1) Randomizer.cfg allows you to configure some of the mods' features to more of your liking, creating either a somewhat normal game world or a completely broken mess (or anything in between). If you opt not to modify the configuration file, then you will get the same experience as you would with the older (0.9-unstable or 0.9.1-unstable) versions of the mod with all recommended plugin files enabled. The configuration file can be edited with any text editor (Windows's Notepad is perfectly fine for it).
 
 Options:
-* oSeed - seed for the RNG system. Information about the randomization of world items, creatures not spawned from leveled lists and actor spells is not stored anywhere in the save file, meaning they will be re-randomized every time you launch the game. Using a fixed seed will allow them to be randomized into the same objects every time (provided your mod load order doesn't change), giving you a consistent experience across a single playthrough. Leave it empty if you want it to be randomized every launch.
+* oSeed - seed for the RNG system. 
+Information about the randomization of world items, creatures not spawned from leveled lists and actor spells is not stored anywhere in the save file, meaning they will be re-randomized every time you launch the game. 
+Due to how Oblivion handles constructing references, a fixed seed may not always yield the same randomizations, but it should provide a more consistent experience nonetheless. Leave it empty if you want it to be randomized every launch.
+
+* oSaveSeedData - if oSeed has a fixed value and this option is set to 1, then creature & world item randomization data will be saved to Oblivion/obrn-seed-data/<seed value>.bin. 
+It guarantees creatures and world items to be randomized into the same objects every time you restart the game.
+
 * oExcludeQuestItems - if set to 1, quest items won't be included in the randomization process.
 * oDelayStart - if set to 1, then the actor and inventory randomization won't kick in until the first ambush in the tutorial (Charactergen reaches stage 20).
 * oInstallCrashFix - if set to 1, it will install a patch that prevents the game from crashing when loading certain textures; if set to 2, it will install a patch that fixes reading invalid data for creatures from a save file; setting it to 3 enables both patches. If you find your save game crashing on load, try to enable either of these options (or both) and see if it helps.
@@ -238,9 +247,6 @@ A: It should be!
 
 Q: I want my modded items to be included in the randomization process. How do I do that?
 A: As of v1.0.0, you do not have to do anything.
-
-Q: The plugin file and/or the GUI application gets flagged by my antivirus. What do I do?
-A: During my testing, some antiviruses flagged this mod and the GUI as malicious, but I can guarantee you that these are false positives. If you don't believe me, you're welcome to compile the mod and the GUI yourself, as they are both open-source on my github.
 
 Q: Can I make changes to your mod and release it?
 A: Sure! You're welcome to alter it in any way you'd like, however I'd ask you to credit me, should you decide to publish your work.

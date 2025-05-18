@@ -41,6 +41,7 @@ int __fastcall CompileFiles_Hook(DWORD* _this, void* _edx, char a2, char a3) {
 			}
 			allItems.push_back(it);
 		}
+		config.InitSeedRandomizationData(allRandomized);
 		files_read = true;
 #ifdef _DEBUG
 		_MESSAGE("Files have been read.");
@@ -75,8 +76,8 @@ int __fastcall ConstructObject_Hook(unsigned char* _this, void* _edx, int a2, ch
 		}
 		if (form->IsReference()) {
 			TESObjectREFR* ref = OBLIVION_CAST(form, TESForm, TESObjectREFR);
-			if (ref && ref->baseForm && 
-				((config.oRandCreatures && ref->GetFormType() == kFormType_ACRE) || 
+			if (ref && ref->baseForm && (
+				(config.oRandCreatures && ref->GetFormType() == kFormType_ACRE) || 
 					(config.oWorldItems && refIsItem(ref)))) {
 				if (files_read) {
 					randomize(form, __FUNCTION__);
@@ -107,14 +108,14 @@ int __fastcall ConstructObject_Hook(unsigned char* _this, void* _edx, int a2, ch
 typedef int(__thiscall* AddItem_t)(int, TESForm*, int, char);
 AddItem_t AddItem = NULL;
 
-int __fastcall AddItem_Hook(int _this, void* _edx, TESForm* a2, int a3, char a4) {
+int __fastcall AddItem_Hook(int _this, void* _edx, TESForm* item, int count, char a4) {
 	void* retAddress = _ReturnAddress();
 	if (config.oAddItems && !IsConsoleOpen() && retAddress == (void*)0x00507419 /*called within a script*/) {
-		if (TESForm * replacement = getRandomBySetting(a2, config.oAddItems, true)) {
-			a2 = replacement;
+		if (TESForm * replacement = getRandomBySetting(item, config.oAddItems, true)) {
+			item = replacement;
 		}
 	}
-	return AddItem(_this, a2, a3, a4);
+	return AddItem(_this, item, count, a4);
 }
 
 #define LoadForm_Addr 0x004603E0
@@ -163,7 +164,6 @@ TESForm* __stdcall LoadForm_Hook(UInt32 a1, UInt32* a2) {
 			TESObjectREFR* ref = OBLIVION_CAST(result, TESForm, TESObjectREFR);
 			restoreFlags.insert(std::make_pair(ref, ref->flags));
 			randomize(ref, __FUNCTION__);
-			ref->Update3D();
 		}
 	}
 	return result;
@@ -420,7 +420,6 @@ void InitHooks() {
 	if (config.oInstallCrashFix & 1) {
 		InitTrampHook(CrashFix, 5);
 	}
-	
 	if (config.oInstallCrashFix & 2) {
 		WriteRelJump(LoadGameHookStart, (UInt32)&LoadGamePatch);
 		WriteRelJump(LoadObjectStart, (UInt32)&LoadObjectPatch);
@@ -444,6 +443,7 @@ unsigned int getNumItems(ItemMapPtr map) {
 bool Cmd_OBRNListsReady_Execute(COMMAND_ARGS) {
 	static bool stats = false; //there's no point in spamming it every reload
 	*result = allCreatures.size() && allClothingAndArmor.size() && allGenericItems.size() && allWeapons.size() ? 1.0 : 0.0;
+	restoredInventories.clear();
 	if (!stats) {
 		Console_Print("Randomizer's Lists Info:");
 		Console_Print("Number of creatures: %u", allCreatures.size());
@@ -515,11 +515,37 @@ bool Cmd_OBRNAlterActorStats_Execute(COMMAND_ARGS) {
 	return true;
 }
 
+bool Cmd_OBRNRestoreCreatureInventory_Execute(COMMAND_ARGS) {
+	TESObjectREFR* ref = NULL;
+	int option = 0;
+	*result = 0.0;
+	if (ExtractArgsEx(paramInfo, arg1, opcodeOffsetPtr, scriptObj, eventList, &ref, &option)) {
+		if (!ref) { //shut up the warning
+			return true;
+		}
+		if (!option) {
+			if (!restoredInventories.contains(ref->refID)) {
+				*result = 1.0f;
+			}
+		}
+		else if (restoreCreatureInventory(ref)) {
+			*result = 1.0f;
+		}
+	}
+	return true;
+}
+
 #endif
 
 static ParamInfo kParams_OneActorRef_OneInt[] =
 {
 	{	"actor reference",	kParamType_Actor,	0	},
+	{   "option", kParamType_Integer, 0},
+};
+
+static ParamInfo kParams_OneObjectRef_OneInt[] =
+{
+	{	"objectRef", kParamType_ObjectRef, 0 },
 	{   "option", kParamType_Integer, 0},
 };
 
@@ -532,6 +558,7 @@ DEFINE_COMMAND_PLUGIN(OBRNGetSetting, "Returns the value for a specified config 
 DEFINE_COMMAND_PLUGIN(OBRNAlterActorStats, "Randomizes the passed actor's attributes (second argument = 0) or stats (second argument = 1), or restores them all to base values if oRestoreBaseAttributes is enabled.",
 	0, 2, kParams_OneActorRef_OneInt
 );
+DEFINE_COMMAND_PLUGIN(OBRNRestoreCreatureInventory, "If second argument is non-zero, it grants the randomized creature all its original items and attempts to restore its aggression, or checks if they have already been restored should the second argument be zero", 0, 2, kParams_OneObjectRef_OneInt);
 
 extern "C" {
 
@@ -617,6 +644,7 @@ bool OBSEPlugin_Load(const OBSEInterface * obse)
 	obse->RegisterCommand(&kCommandInfo_OBRNListsReady);
 	obse->RegisterCommand(&kCommandInfo_OBRNGetSetting);
 	obse->RegisterCommand(&kCommandInfo_OBRNAlterActorStats);
+	obse->RegisterCommand(&kCommandInfo_OBRNRestoreCreatureInventory);
 
 	// set up serialization callbacks when running in the runtime
 	if(!obse->isEditor)

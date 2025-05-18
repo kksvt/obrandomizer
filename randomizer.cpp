@@ -16,7 +16,10 @@ std::vector<UInt32> allSpells;
 std::unordered_map<MagicItem*, MagicItem*> spellMapping;
 std::unordered_set<UInt32> allAdded;
 
-std::unordered_set<UInt32> allRandomized;
+//std::unordered_set<UInt32> allRandomized;
+std::unordered_map<UInt32, UInt32> allRandomized;
+std::unordered_map<UInt32, UInt32> oldCreatures;
+std::set<UInt32> restoredInventories;
 
 std::list<TESForm*> toRandomize;
 std::map<TESObjectREFR*, UInt32> restoreFlags;
@@ -155,7 +158,7 @@ bool tryToAddForm(TESForm* f) {
 		}
 		else {
 			TESObjectCLOT* clothing = OBLIVION_CAST(f, TESForm, TESObjectCLOT);
-			key = clothing->bipedModel.partMask;
+			key = clothing->bipedModel.partMask & ~kSlot_Tail;
 		}
 		if (key & kSlot_RightRing) {
 			key = kSlot_LeftRing;
@@ -294,7 +297,7 @@ TESForm* getRandomByType(TESForm *f, bool keysAreQuestItems) {
 			}
 			else {
 				TESObjectCLOT* clothing = OBLIVION_CAST(f, TESForm, TESObjectCLOT);
-				key = clothing->bipedModel.partMask;
+				key = clothing->bipedModel.partMask & ~kSlot_Tail;
 			}
 			if (key & kSlot_RightRing) {
 				key = kSlot_LeftRing;
@@ -356,7 +359,7 @@ TESForm* getRandomBySetting(TESForm* f, int option, bool keysAreQuestItems) {
 	case 2:
 		return getRandom(f, keysAreQuestItems);
 	default:
-		_MESSAGE("Invalid option %i for getRandomBySetting", option);
+		_WARNING("Invalid option %i for getRandomBySetting", option);
 		return NULL;
 	}
 }
@@ -916,6 +919,101 @@ static void randomizeInventory(TESObjectREFR* ref) {
 	}
 }
 
+bool restoreCreatureInventory(TESObjectREFR* ref) {
+	//there is an issue with certain creatures unequipping their weapons
+	//upon reload, therefore we cannot have it rely solely on giving them obrnflag
+	//to check whether their inventories were restored. we will just clean them
+	//and restore them every reload. not ideal, but i dont think any solution
+	//within this mod is ideal
+	if (!obrnFlag) {
+		return false;
+	}
+	if (ref->GetFormType() != kFormType_ACRE) {
+		return false;
+	}
+	if (allRandomized.find(ref->refID) == allRandomized.end()) {
+		return false;
+	}
+	auto it = oldCreatures.find(ref->refID);
+	if (it == oldCreatures.end()) {
+		_ERROR(__FUNCTION__": Creature %s %08X has no original baseform saved, even though it has been randomized.",
+			GetFullName(ref), ref->refID);
+		return false;
+	}
+	TESForm* baseForm = LookupFormByID(it->second);
+	if (!baseForm) {
+		_ERROR(__FUNCTION__": Creature %s %08X's baseform %08X does not exist. This should never happen.",
+			GetFullName(ref), ref->refID, it->second);
+		return false;
+	}
+	TESCreature* critter = OBLIVION_CAST(baseForm, TESForm, TESCreature);
+	if (!critter) {
+		_ERROR(__FUNCTION__": Baseform for Creature %s %08X is of the type %s (%i).", 
+			GetFullName(ref), ref->refID,
+			FormTypeToString(baseForm->GetFormType()), baseForm->GetFormType());
+		return false;
+	}
+	TESCreature* critter_new = OBLIVION_CAST(ref->baseForm, TESForm, TESCreature);
+	if (!critter_new) {
+		_ERROR(__FUNCTION__": New baseform for Creature %s %08X is of the type %s (%i).",
+			GetFullName(ref), ref->refID,
+			FormTypeToString(ref->baseForm->GetFormType()), ref->baseForm->GetFormType());
+		return false;
+	}
+	Actor* actor = OBLIVION_CAST(ref, TESObjectREFR, Actor);
+	if (!actor) {
+		_ERROR(__FUNCTION__": Creature %s %08X is not an actor.", GetFullName(ref), ref->refID);
+		return false;
+	}
+	ForceActorValue(actor, kActorVal_Aggression, critter->GetActorValue(kActorVal_Aggression));
+	restoredInventories.insert(ref->refID);
+	std::unordered_map<TESForm*, int> items, currentItems;
+	getInventoryFromTESContainer(&critter->container, items, (ItemRetrieval::all | ItemRetrieval::noAccumulation));
+	bool hasFlag = getContainerInventory(ref, currentItems, (ItemRetrieval::all));
+	if (!hasFlag) {
+		//1. delete all items
+		//2. give flag
+		//3. give original items
+		//4. give new items provided they are equippable and the creature is not dead
+		for (const auto& it : currentItems) {
+			ref->RemoveItem(it.first, NULL, it.second, 0, 0, NULL, NULL, NULL, 0, 0);
+		}
+		ref->AddItem(obrnFlag, NULL, 1);
+		for (const auto& it : items) {
+			ref->AddItem(it.first, NULL, it.second);
+		}
+	}
+	else {
+		//has the flag
+		//1. delete non-original items
+		//2. give new items provided they are equippable and the creature isnt dead
+		for (const auto& it : currentItems) {
+			if (it.first == obrnFlag || 
+				items.find(it.first) != items.end()) {
+				continue;
+			}
+			ref->RemoveItem(it.first, NULL, it.second, 0, 0, NULL, NULL, NULL, 0, 0);
+		}
+	}
+	if (ref->IsDead(true)) {
+#ifdef _DEBUG
+		_MESSAGE(__FUNCTION__": Creature %s %08X is dead. Not giving it its new items.",
+			GetFullName(ref), ref->refID);
+#endif
+		return true;
+	}
+	items.clear();
+	getInventoryFromTESContainer(&critter_new->container, items, (ItemRetrieval::all | ItemRetrieval::noAccumulation));
+	for (const auto& it : items) {
+		if (!itemIsEquippable(it.first)) {
+			continue;
+		}
+		ref->AddItem(it.first, NULL, it.second);
+		ref->Equip(it.first, 1, NULL, 0);
+	}
+	return true;
+}
+
 static void randomizeCreature(TESObjectREFR* ref, const char* function) {
 	if (allCreatures.size() == 0) {
 		return;
@@ -940,26 +1038,63 @@ static void randomizeCreature(TESObjectREFR* ref, const char* function) {
 	if (!actor) {
 		return;
 	}
-	UInt32 health = actor->GetBaseActorValue(kActorVal_Health), aggression = actor->GetActorValue(kActorVal_Aggression);
+	UInt32 health = actor->GetBaseActorValue(kActorVal_Health);
 	if (health == 0) {
 		return;
 	}
-	std::unordered_map<TESForm*, int> keepItems;
-	getContainerInventory(ref, keepItems, (ItemRetrieval::all | ItemRetrieval::noAccumulation));
-	TESForm* oldBaseForm = ref->GetTemplateForm() ? ref->GetTemplateForm() : ref->baseForm,
-		* rando = LookupFormByID(allCreatures[rng(0, allCreatures.size() - 1)]);
+	TESForm* rando = NULL;
+	if (strcmp(function, "ESP") == 0) {
+		rando = LookupFormByID(allCreatures[rng(0, allCreatures.size() - 1)]);
+	}
+	else {
+		auto mapping = allRandomized.find(ref->refID);
+		if (mapping != allRandomized.end()) {
+			//we are already randomized
+			if (ref->baseForm->refID == mapping->second) {
+				return;
+			}
+			rando = LookupFormByID(mapping->second);
+#ifdef _DEBUG
+			_MESSAGE("Restoration from mapping: %s %08X (%08X) => %s %08X (%08X),",
+				GetFullName(ref), ref->refID, ref,
+				GetFullName(rando), rando->refID, rando);
+#endif
+		}
+		if (!rando) {
+			rando = LookupFormByID(allCreatures[rng(0, allCreatures.size() - 1)]);
+			allRandomized.insert(std::make_pair(ref->refID, rando->refID));
+			config.WriteSeedRandomizationData(ref->refID, rando->refID);
+		}
+	}
+	//std::unordered_map<TESForm*, int> keepItems;
+	//getContainerInventory(ref, keepItems, (ItemRetrieval::all | ItemRetrieval::noAccumulation));
+	oldCreatures.insert(std::make_pair(ref->refID, ref->baseForm->refID));
+	TESForm* oldBaseForm = ref->GetTemplateForm() ? ref->GetTemplateForm() : ref->baseForm;
 #ifdef _DEBUG
 	_MESSAGE("%s: Going to randomize %s %08X into %s %08X", function, GetFullName(ref), ref->refID, GetFullName(rando), rando->refID);
 #endif
 	//TESActorBase* actorBase = OBLIVION_CAST(rando, TESForm, TESActorBase);
 	ref->baseForm = rando;
-	ref->SetTemplateForm(oldBaseForm);
-	ForceActorValue(actor, kActorVal_Aggression, aggression);
-	for (const auto& it : keepItems) {
+	ref->SetTemplateForm(oldBaseForm); //im not sure if this does anything for regular references, 
+	//but its been here for a while, so might as well leave it in
+
+	//there's actually an issue with this approach:
+	//say a randomized creature is carrying a quest item
+	//you have a save file from before killing it
+	//you kill it, loot its corpse, and reload the said save
+	//since theres nothing in the code that will re-place
+	//the quest item on the creature, the item will be gone
+	//as if it had been picked up.
+	//ive tried various approaches to make it work,
+	//including forcing ResetObject calls in LoadGame, but that just adds
+	//a lot of unpleasant hooks.
+	//for the time being ill have them restored in the script actor/container
+	//randomization loop
+	/*for (const auto& it : keepItems) {
 		TESForm* item = it.first;
 		int cnt = it.second;
 		ref->AddItem(item, NULL, cnt);
-	}
+	}*/
 	ref->Update3D();
 }
 
@@ -970,13 +1105,39 @@ static void randomizeWorldItem(TESObjectREFR* ref, const char* function) {
 #ifdef _DEBUG
 	_MESSAGE("%s: World item randomization: will try to randomize %s %08X", function, GetFullName(ref), ref->refID);
 #endif
-	if (TESForm* rando = getRandomBySetting(ref->baseForm, config.oWorldItems, false)) {
-#ifdef _DEBUG
-		_MESSAGE("%s: Going to randomize %s %08X into %s %08X", function, GetFullName(ref), ref->refID, GetFullName(rando), rando->refID);
-#endif
-		ref->baseForm = rando;
-		ref->Update3D();
+	TESForm* rando = NULL;
+	if (strcmp(function, "ESP") == 0) {
+		rando = getRandomBySetting(ref->baseForm, config.oWorldItems, false);
+		if (!rando) {
+			return;
+		}
 	}
+	else {
+		auto mapping = allRandomized.find(ref->refID);
+		if (mapping != allRandomized.end()) {
+			if (ref->baseForm->refID == mapping->second) {
+				return;
+			}
+			rando = LookupFormByID(mapping->second);
+#ifdef _DEBUG
+			_MESSAGE("Restoration from mapping: %s %08X => %s %08X", GetFullName(ref), ref->refID,
+				GetFullName(rando), rando->refID);
+#endif
+		}
+		if (!rando) {
+			rando = getRandomBySetting(ref->baseForm, config.oWorldItems, false);
+			if (!rando) {
+				return;
+			}
+			allRandomized.insert(std::make_pair(ref->refID, rando->refID));
+			config.WriteSeedRandomizationData(ref->refID, rando->refID);
+		}
+	}
+#ifdef _DEBUG
+	_MESSAGE("%s: Going to randomize %s %08X into %s %08X", function, GetFullName(ref), ref->refID, GetFullName(rando), rando->refID);
+#endif
+	ref->baseForm = rando;
+	ref->Update3D();
 }
 
 static void randomizeSpell(TESForm* spell, const char* function) {
@@ -986,19 +1147,19 @@ static void randomizeSpell(TESForm* spell, const char* function) {
 			function, GetFullName(spell), spell->refID, FormTypeToString(spell->GetFormType()));
 		return;
 	}
-
+	if (spellMapping.contains(magicItem)) {
+		return;
+	}
 	TESForm* rando = getRandomBySetting(spell, config.oRandSpells, false);
 	if (!rando) {
 		return;
 	}
-
 	MagicItem* randoMagicItem = OBLIVION_CAST(rando, TESForm, MagicItem);
 	if (!randoMagicItem) {
 		_ERROR("%s: could not convert spell %s (%08X %s) to MagicItem",
 			function, GetFullName(rando), rando->refID, FormTypeToString(rando->GetFormType()));
 		return;
 	}
-
 	spellMapping.insert(std::make_pair(magicItem, randoMagicItem));
 #ifdef _DEBUG
 	_MESSAGE("%s: spell %s (%08X) has been randomized into %s (%08X).",
@@ -1007,14 +1168,6 @@ static void randomizeSpell(TESForm* spell, const char* function) {
 }
 
 void randomize(TESForm* form, const char* function) {
-	if (allRandomized.contains(form->refID) && strcmp(function, "ESP")) {
-#ifdef _DEBUG
-		_MESSAGE("%s: ref %s %08X has already been randomized.",
-			function, GetFullName(form), form->refID);
-#endif
-		return;
-	}
-	allRandomized.insert(form->refID);
 #ifdef _DEBUG
 	_MESSAGE(__FUNCTION__": Attempting to randomize %s (%08X %s)",
 		GetFullName(form), form->refID, FormTypeToString(form->GetFormType()));
